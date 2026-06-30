@@ -41,6 +41,48 @@ colcon build
 source install/setup.bash
 ```
 
+## Usar em outro workspace ROS 2
+
+Para uso real em outro workspace, o pacote essencial e apenas:
+
+```text
+src/sipeed_tof_ms_a010
+```
+
+O restante do repositorio e material de teste/documentacao:
+
+```text
+src/tof_stvl_test              # testes locais com STVL/costmap
+run_*.sh                       # scripts de teste
+tutorial_testes_maixsense_*.md # roteiro detalhado dos testes
+maixsense_a010_falha_*.md      # anotacoes da investigacao da falha
+```
+
+Exemplo para copiar/clonar o driver em outro workspace:
+
+```bash
+cd ~/seu_ws
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select sipeed_tof_ms_a010
+source install/setup.bash
+```
+
+Executavel principal:
+
+```bash
+ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args \
+  -p device:=/dev/tof \
+  -p watchdog_timeout_sec:=3.0 \
+  -p watchdog_cooldown_sec:=1.0
+```
+
+Topicos publicados:
+
+```text
+/cloud
+/depth
+```
+
 ## Descobrir dispositivo
 
 ```bash
