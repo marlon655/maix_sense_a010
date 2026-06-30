@@ -86,6 +86,11 @@ rmw_fastrtps_cpp
 E `ZENOH_CONFIG_OVERRIDE` deve sair vazio.
 
 ## Verificar portas Serial
+
+Importante: `/dev/ttyUSB0` nos comandos abaixo e apenas um exemplo. Antes de
+rodar qualquer teste, confirme qual porta e a interface de dados do MaixSense.
+O A010 costuma criar duas portas, como `/dev/ttyUSB0` e `/dev/ttyUSB1`.
+
 ```bash
 ls -l /dev/tof /dev/ttyUSB* /dev/ttyACM*
 ```
@@ -94,6 +99,15 @@ ls -l /dev/tof /dev/ttyUSB* /dev/ttyACM*
 udevadm info -q property -n /dev/ttyUSB0 | grep -E 'ID_SERIAL|ID_MODEL|ID_VENDOR|ID_USB_INTERFACE_NUM|ID_PATH'
 udevadm info -q property -n /dev/ttyUSB1 | grep -E 'ID_SERIAL|ID_MODEL|ID_VENDOR|ID_USB_INTERFACE_NUM|ID_PATH'
 ```
+
+Tambem confira se `/dev/tof` aponta para a porta esperada:
+
+```bash
+readlink -f /dev/tof
+```
+
+Nos testes deste documento, substitua `/dev/ttyUSB0` pela porta correta se o
+sensor aparecer em outra porta.
 
 ## Teste 1 - Verificar porta serial correta
 
@@ -135,6 +149,9 @@ Dragonfly ISP stop failed
 entao o sensor entrou em estado ruim. Nesse estado, geralmente precisa desligar/ligar fisicamente o A010.
 
 ## Teste 2 - Rodar somente o driver
+
+Use a porta correta identificada em "Verificar portas Serial". Neste exemplo,
+ela esta como `/dev/ttyUSB0`.
 
 Terminal 1 - driver:
 
@@ -256,6 +273,8 @@ Observacao: se usar `timeout` muito curto, ele pode matar o node durante a inici
 ## Teste 5 - Watchdog de queda/reconexao USB
 
 Este teste valida a recuperacao automatica quando o cabo de dados USB cai e volta. Mantenha a alimentacao separada do A010 ligada; desconecte apenas os dados USB.
+Use a porta correta identificada em "Verificar portas Serial". Neste exemplo,
+ela esta como `/dev/ttyUSB0`.
 
 Terminal 1 - driver:
 
@@ -321,6 +340,8 @@ Resultado esperado:
 ## Teste 6 - STVL sem RViz
 
 Este teste sobe o driver real, TF fixo e um `local_costmap` com STVL lendo `/cloud`.
+Use a porta correta identificada em "Verificar portas Serial". Neste exemplo,
+ela esta como `/dev/ttyUSB0`.
 
 Terminal 1:
 
@@ -375,6 +396,8 @@ Deixe 20 minutos. Se `/cloud` continuar publicando, teste passou.
 ## Teste 7 - RViz leve
 
 Primeiro suba o teste MaixSense + STVL. Ele publica o driver, TF e costmap usados pelo RViz.
+Use a porta correta identificada em "Verificar portas Serial". Neste exemplo,
+ela esta como `/dev/ttyUSB0`.
 
 Terminal 1:
 

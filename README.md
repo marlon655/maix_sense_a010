@@ -89,9 +89,34 @@ Topicos publicados:
 ls -l /dev/tof /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
 
-Se nao existir `/dev/tof`, use o `/dev/ttyUSB0` ou `/dev/ttyACM0` correspondente.
+O `/dev/ttyUSB0` usado nos exemplos e apenas um exemplo. Antes de rodar o
+driver, confirme em qual porta a interface de dados do MaixSense apareceu.
+
+O A010 normalmente cria duas seriais, por exemplo `/dev/ttyUSB0` e
+`/dev/ttyUSB1`. A porta correta e a que responde `AT` ou ja esta enviando o
+stream binario do sensor.
+
+Para inspecionar as interfaces:
+
+```bash
+udevadm info -q property -n /dev/ttyUSB0 | grep -E 'ID_SERIAL|ID_MODEL|ID_VENDOR|ID_USB_INTERFACE_NUM|ID_PATH'
+udevadm info -q property -n /dev/ttyUSB1 | grep -E 'ID_SERIAL|ID_MODEL|ID_VENDOR|ID_USB_INTERFACE_NUM|ID_PATH'
+```
+
+Se nao existir `/dev/tof`, use a `/dev/ttyUSB*` correta. Se `/dev/tof` existir,
+confira para onde aponta:
+
+```bash
+readlink -f /dev/tof
+```
+
+No PC final, recomenda-se criar regra udev para `/dev/tof` apontar sempre para a
+interface de dados correta.
 
 ## Rodar driver isolado
+
+Troque `/dev/ttyUSB0` pela porta correta encontrada na etapa anterior, se
+necessario.
 
 ```bash
 ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args -p device:=/dev/tof
