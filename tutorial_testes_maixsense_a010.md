@@ -374,7 +374,24 @@ Deixe 20 minutos. Se `/cloud` continuar publicando, teste passou.
 
 ## Teste 7 - RViz leve
 
-Com o Teste 6 rodando, abra RViz em outro terminal:
+Primeiro suba o teste MaixSense + STVL. Ele publica o driver, TF e costmap usados pelo RViz.
+
+Terminal 1:
+
+```bash
+cd ~/tof_test_ws
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+unset ZENOH_CONFIG_OVERRIDE
+unset ZENOH_SHM_ALLOC_SIZE
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+
+./run_maixsense_stvl_test.sh /dev/ttyUSB0
+```
+
+Depois abra o RViz em outro terminal.
+
+Terminal 2:
 
 ```bash
 cd ~/tof_test_ws
