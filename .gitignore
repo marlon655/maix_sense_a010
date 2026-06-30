@@ -1,0 +1,13 @@
+build/
+install/
+log/
+
+*.pyc
+__pycache__/
+.pytest_cache/
+
+*.bag
+*.db3
+*.log
+
+src/sipeed_tof_ms_a010/src/*.bak*
