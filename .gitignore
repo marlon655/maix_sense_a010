@@ -9,5 +9,6 @@ __pycache__/
 *.bag
 *.db3
 *.log
+maixsense_at_configs/
 
 src/sipeed_tof_ms_a010/src/*.bak*

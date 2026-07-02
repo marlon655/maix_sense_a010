@@ -151,6 +151,40 @@ ros2 topic hz /cloud
 
 Valor esperado nos testes locais: perto de `6 a 7 Hz`.
 
+## Configurar parametros AT manualmente
+
+O driver ja configura o necessario para publicar `/cloud`: ele para stream antigo,
+consulta `AT+COEFF?` e inicia com `AT+DISP=3`. Normalmente nao precisa alterar os
+parametros internos do sensor.
+
+Se precisar testar configuracoes como `FPS`, `BINN`, `UNIT` ou `BAUD`, use o
+helper interativo:
+
+```bash
+cd ~/tof_test_ws
+python3 tools/maixsense_at_config.py --device /dev/ttyUSB0
+```
+
+Troque `/dev/ttyUSB0` pela porta correta do sensor.
+
+O script:
+
+- para o stream com `AT+DISP=1` antes de consultar/enviar comandos;
+- mostra valores atuais com `AT+FPS?`, `AT+BAUD?`, `AT+UNIT?`, `AT+BINN?` e `AT+DISP?`;
+- permite deixar cada campo em branco para manter o valor atual;
+- salva o plano em `maixsense_at_configs/*.json` antes de enviar;
+- exige confirmacao extra para alterar `BAUD`.
+
+Para simular sem enviar comandos:
+
+```bash
+python3 tools/maixsense_at_config.py --device /dev/ttyUSB0 --dry-run
+```
+
+Evite alterar `BAUD` e `UNIT` sem necessidade. `BAUD` pode quebrar a comunicacao
+se o host e o sensor ficarem em velocidades diferentes; `UNIT` altera a escala de
+profundidade e pode exigir recalibrar a conversao de distancia no driver.
+
 ## Se der permissao negada
 
 ```bash
