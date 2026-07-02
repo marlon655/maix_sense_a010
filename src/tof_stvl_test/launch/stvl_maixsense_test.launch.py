@@ -10,6 +10,8 @@ from launch_ros.actions import Node
 def generate_launch_description():
     pkg_share = get_package_share_directory('tof_stvl_test')
     params = os.path.join(pkg_share, 'config', 'stvl_costmap_maixsense.yaml')
+    tof_pkg_share = get_package_share_directory('sipeed_tof_ms_a010')
+    tof_params = os.path.join(tof_pkg_share, 'config', 'maixsense_params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument('device', default_value='/dev/tof'),
@@ -44,9 +46,9 @@ def generate_launch_description():
         Node(
             package='sipeed_tof_ms_a010',
             executable='sipeed_tof_node',
-            name='sipeed_tof_node',
+            name='sipeed_tof_ms_a010',
             output='screen',
-            parameters=[{'device': LaunchConfiguration('device')}],
+            parameters=[tof_params, {'device': LaunchConfiguration('device')}],
         ),
         Node(
             package='nav2_costmap_2d',
