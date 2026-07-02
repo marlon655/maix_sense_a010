@@ -1,0 +1,18 @@
+sipeed_tof_ms_a010:
+  ros__parameters:
+    # Porta serial. No robo final, prefira /dev/tof com regra udev correta.
+    device: /dev/tof
+
+    # Watchdog de publicacao. Se /cloud parar, o driver reabre a serial.
+    watchdog_timeout_sec: 3.0
+    watchdog_cooldown_sec: 1.0
+
+    # Configuracoes AT aplicadas no startup.
+    # Use -1 para nao aplicar e manter o valor atual/default do sensor.
+    sensor_fps: -1
+    sensor_binn: -1
+    sensor_unit: -1
+
+    # Perigoso: muda o baud configurado no sensor.
+    # Deixe -1 salvo salvo se souber exatamente o codigo esperado pelo firmware.
+    sensor_baud_code: -1

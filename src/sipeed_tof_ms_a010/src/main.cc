@@ -30,6 +30,10 @@ class SipeedTOF_MSA010_Publisher : public rclcpp::Node {
   float uvf_parms[4];
   double watchdog_timeout_sec_ = 3.0;
   double watchdog_cooldown_sec_ = 1.0;
+  int sensor_fps_ = -1;
+  int sensor_binn_ = -1;
+  int sensor_unit_ = -1;
+  int sensor_baud_code_ = -1;
   rclcpp::Time last_cloud_publish_time_;
   rclcpp::Time last_watchdog_recovery_time_;
   bool recovering_stream_ = false;
@@ -41,11 +45,19 @@ class SipeedTOF_MSA010_Publisher : public rclcpp::Node {
     this->declare_parameter("device", "/dev/tof");
     this->declare_parameter("watchdog_timeout_sec", 3.0);
     this->declare_parameter("watchdog_cooldown_sec", 1.0);
+    this->declare_parameter("sensor_fps", -1);
+    this->declare_parameter("sensor_binn", -1);
+    this->declare_parameter("sensor_unit", -1);
+    this->declare_parameter("sensor_baud_code", -1);
     rclcpp::Parameter device_param = this->get_parameter("device");
     s = device_param.as_string();
     device_path_ = s;
     watchdog_timeout_sec_ = this->get_parameter("watchdog_timeout_sec").as_double();
     watchdog_cooldown_sec_ = this->get_parameter("watchdog_cooldown_sec").as_double();
+    sensor_fps_ = this->get_parameter("sensor_fps").as_int();
+    sensor_binn_ = this->get_parameter("sensor_binn").as_int();
+    sensor_unit_ = this->get_parameter("sensor_unit").as_int();
+    sensor_baud_code_ = this->get_parameter("sensor_baud_code").as_int();
     pser = std::make_unique<Serial>(s);
     std::cout << "use device: " << s << std::endl;
     if (!pser || !pser->ok()) {
@@ -68,6 +80,10 @@ class SipeedTOF_MSA010_Publisher : public rclcpp::Node {
     }
     std::cout << "finish: AT " << s << std::endl;
     if (!rclcpp::ok()) {
+      return;
+    }
+
+    if (!apply_startup_sensor_config()) {
       return;
     }
 
@@ -230,6 +246,43 @@ class SipeedTOF_MSA010_Publisher : public rclcpp::Node {
       std::this_thread::sleep_for(300ms);
     }
     return false;
+  }
+
+  bool apply_sensor_config_command(const std::string &cmd) {
+    std::string response;
+    if (!send_command_expect_with_retries(cmd, "OK", response, 3, 4)) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Could not apply sensor config command %s. Response: '%s'",
+                  cmd.c_str(), response.c_str());
+      return false;
+    }
+    RCLCPP_INFO(this->get_logger(), "Applied sensor config: %s", cmd.c_str());
+    return true;
+  }
+
+  bool apply_startup_sensor_config() {
+    if (sensor_fps_ >= 0 &&
+        !apply_sensor_config_command("AT+FPS=" + std::to_string(sensor_fps_))) {
+      return false;
+    }
+    if (sensor_binn_ >= 0 &&
+        !apply_sensor_config_command("AT+BINN=" + std::to_string(sensor_binn_))) {
+      return false;
+    }
+    if (sensor_unit_ >= 0 &&
+        !apply_sensor_config_command("AT+UNIT=" + std::to_string(sensor_unit_))) {
+      return false;
+    }
+    if (sensor_baud_code_ >= 0) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Applying sensor BAUD code %d. If host baudrate does not match, "
+                  "communication may stop.",
+                  sensor_baud_code_);
+      if (!apply_sensor_config_command("AT+BAUD=" + std::to_string(sensor_baud_code_))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   std::vector<std::string> reconnect_candidates() const {

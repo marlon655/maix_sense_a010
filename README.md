@@ -76,6 +76,32 @@ ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args \
   -p watchdog_cooldown_sec:=1.0
 ```
 
+Tambem existe um arquivo de parametros para aplicar configuracoes AT no startup:
+
+```text
+src/sipeed_tof_ms_a010/config/maixsense_params.yaml
+```
+
+Uso:
+
+```bash
+ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args \
+  --params-file src/sipeed_tof_ms_a010/config/maixsense_params.yaml
+```
+
+Parametros AT disponiveis no YAML:
+
+```text
+sensor_fps        # envia AT+FPS=<valor> no startup
+sensor_binn       # envia AT+BINN=<valor> no startup
+sensor_unit       # envia AT+UNIT=<valor> no startup
+sensor_baud_code  # envia AT+BAUD=<valor> no startup, perigoso
+```
+
+Use `-1` para nao aplicar um parametro. Recomenda-se manter
+`sensor_baud_code: -1` salvo salvo se tiver certeza do codigo de baud esperado
+pelo firmware e pelo host.
+
 Topicos publicados:
 
 ```text
