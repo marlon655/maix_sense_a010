@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#cd ~/tof_test_ws
+#python3 tools/maixsense_at_config.py --device /dev/ttyUSB0
+
 """Interactive AT configuration helper for Sipeed MaixSense A010.
 
 This tool is intentionally conservative:
