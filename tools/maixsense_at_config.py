@@ -150,8 +150,14 @@ def collect_plan(current: Dict[str, str]) -> List[Tuple[str, str, str]]:
 
     print("\nComandos customizados opcionais.")
     print("Use somente se souber o comando AT correto. Enter vazio termina.")
+    print("Exemplos:")
+    print("  AT+BAUD?     consulta baud configurado")
+    print("  AT+FPS?      consulta FPS configurado")
+    print("  AT+FPS=10    altera FPS para 10")
+    print("  AT+DISP=1    para stream USB")
+    print("  AT+DISP=3    inicia stream USB")
     while True:
-        custom = input("AT customizado [enter = fim]: ").strip()
+        custom = input("AT customizado, ex. AT+FPS? [enter = fim]: ").strip()
         if not custom:
             break
         if not custom.startswith("AT"):

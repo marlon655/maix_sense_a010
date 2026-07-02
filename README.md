@@ -175,6 +175,18 @@ O script:
 - salva o plano em `maixsense_at_configs/*.json` antes de enviar;
 - exige confirmacao extra para alterar `BAUD`.
 
+Na parte de comandos customizados, exemplos validos sao:
+
+```text
+AT+BAUD?   # consulta baud configurado
+AT+FPS?    # consulta FPS configurado
+AT+FPS=10  # altera FPS para 10
+AT+DISP=1  # para stream USB
+AT+DISP=3  # inicia stream USB
+```
+
+Use letras maiusculas nos comandos AT, seguindo o formato do manual/wiki.
+
 Para simular sem enviar comandos:
 
 ```bash
