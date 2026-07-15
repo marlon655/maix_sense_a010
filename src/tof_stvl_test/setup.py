@@ -15,6 +15,7 @@ setup(
         ('share/' + package_name + '/urdf', glob('urdf/*.urdf')),
     ],
     install_requires=['setuptools'],
+    tests_require=['pytest'],
     zip_safe=True,
     maintainer='ros_estudo',
     maintainer_email='ros_estudo@example.com',
