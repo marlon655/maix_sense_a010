@@ -22,7 +22,7 @@ def generate_launch_description():
         DeclareLaunchArgument('device', default_value='/dev/tof'),
         DeclareLaunchArgument('tof_x', default_value='0.26'),
         DeclareLaunchArgument('tof_y', default_value='0.0'),
-        DeclareLaunchArgument('tof_z', default_value='0.21'),
+        DeclareLaunchArgument('tof_z', default_value='0.22'),
 
         Node(
             package='tf2_ros',
