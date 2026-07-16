@@ -263,9 +263,9 @@ class PointCloudPreprocessor(Node):
         self.declare_parameter('temporal_clear_history_on_tf_failure', True)
         self.declare_parameter('temporal_max_translation_jump', 1.0)
         self.declare_parameter('temporal_max_rotation_jump', 1.5708)
-        self.declare_parameter('publish_intermediate_clouds', True)
-        self.declare_parameter('publish_filter_bounds', True)
-        self.declare_parameter('publish_projected_wall', True)
+        self.declare_parameter('publish_intermediate_clouds', False)
+        self.declare_parameter('publish_filter_bounds', False)
+        self.declare_parameter('publish_projected_wall', False)
         self.declare_parameter('projected_wall_epsilon', 0.001)
 
         input_topic = self.get_parameter('input_topic').value
@@ -284,6 +284,12 @@ class PointCloudPreprocessor(Node):
             self.get_parameter('temporal_max_translation_jump').value)
         temporal_max_rotation_jump = float(
             self.get_parameter('temporal_max_rotation_jump').value)
+        self.publish_intermediate_clouds_enabled = bool(
+            self.get_parameter('publish_intermediate_clouds').value)
+        self.publish_filter_bounds_enabled = bool(
+            self.get_parameter('publish_filter_bounds').value)
+        self.publish_projected_wall_enabled = bool(
+            self.get_parameter('publish_projected_wall').value)
         try:
             validate_lateral_limits(self.lateral_min, self.lateral_max)
             validate_projected_wall_epsilon(self.projected_wall_epsilon)
@@ -306,33 +312,55 @@ class PointCloudPreprocessor(Node):
             self.parameter_callback)
 
         self.output_pub = self.create_publisher(PointCloud2, output_topic, 10)
-        self.distance_pub = self.create_publisher(
-            PointCloud2, '/tof_filters/distance', 10)
-        self.height_pub = self.create_publisher(
-            PointCloud2, '/tof_filters/height', 10)
-        self.lateral_pub = self.create_publisher(
-            PointCloud2, '/tof_filters/lateral', 10)
-        self.spatial_pub = self.create_publisher(
-            PointCloud2, '/tof_filters/spatial', 10)
-        marker_qos = QoSProfile(
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-        )
-        self.filter_bounds_pub = self.create_publisher(
-            Marker, '/tof_filters/filter_bounds', marker_qos)
-        self.projected_wall_pub = self.create_publisher(
-            PointCloud2, '/tof_filters/projected_wall', marker_qos)
+        self.distance_pub = None
+        self.height_pub = None
+        self.lateral_pub = None
+        self.spatial_pub = None
+        if self.publish_intermediate_clouds_enabled:
+            self.distance_pub = self.create_publisher(
+                PointCloud2, '/tof_filters/distance', 10)
+            self.height_pub = self.create_publisher(
+                PointCloud2, '/tof_filters/height', 10)
+            self.lateral_pub = self.create_publisher(
+                PointCloud2, '/tof_filters/lateral', 10)
+            self.spatial_pub = self.create_publisher(
+                PointCloud2, '/tof_filters/spatial', 10)
+
+        self.filter_bounds_pub = None
+        self.projected_wall_pub = None
+        self.filter_bounds_timer = None
+        if (self.publish_filter_bounds_enabled or
+                self.publish_projected_wall_enabled):
+            marker_qos = QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+            if self.publish_filter_bounds_enabled:
+                self.filter_bounds_pub = self.create_publisher(
+                    Marker, '/tof_filters/filter_bounds', marker_qos)
+                self.filter_bounds_timer = self.create_timer(
+                    1.0, self.publish_filter_bounds_marker)
+            if self.publish_projected_wall_enabled:
+                self.projected_wall_pub = self.create_publisher(
+                    PointCloud2, '/tof_filters/projected_wall', marker_qos)
+
         self.subscription = self.create_subscription(
             PointCloud2, input_topic, self.cloud_callback, 10)
-        self.filter_bounds_visible = False
-        self.projected_wall_visible = False
-        self.filter_bounds_timer = self.create_timer(
-            1.0, self.publish_filter_bounds_marker)
-        self.publish_filter_bounds_marker()
+        if self.publish_filter_bounds_enabled:
+            self.publish_filter_bounds_marker()
 
+        debug_state = (
+            f'intermediate={self.publish_intermediate_clouds_enabled}, '
+            f'bounds={self.publish_filter_bounds_enabled}, '
+            f'projected_wall={self.publish_projected_wall_enabled}')
         self.get_logger().info(
-            f'Filtering {input_topic} -> {output_topic}')
+            f'ToF preprocessor ready: input={input_topic}, '
+            f'output={output_topic}, '
+            f'target_frame={self.get_parameter("target_frame").value}, '
+            f'output_frame={self.get_parameter("output_frame").value}, '
+            f'temporal_reference_frame={self.temporal_history_frame}, '
+            f'debug=[{debug_state}]')
 
     def create_filter_bounds_marker(self, action=Marker.ADD):
         marker = Marker()
@@ -377,17 +405,11 @@ class PointCloudPreprocessor(Node):
         return marker
 
     def publish_filter_bounds_marker(self):
-        enabled = bool(self.get_parameter('publish_filter_bounds').value)
-        if enabled:
-            marker = self.create_filter_bounds_marker(Marker.ADD)
-            if marker is None:
-                return
+        if not self.publish_filter_bounds_enabled:
+            return
+        marker = self.create_filter_bounds_marker(Marker.ADD)
+        if marker is not None:
             self.filter_bounds_pub.publish(marker)
-            self.filter_bounds_visible = True
-        elif self.filter_bounds_visible:
-            self.filter_bounds_pub.publish(
-                self.create_filter_bounds_marker(Marker.DELETE))
-            self.filter_bounds_visible = False
 
     def create_projected_wall_cloud(self, points, approved_indices,
                                     sensor_origin, stamp, empty=False):
@@ -413,17 +435,11 @@ class PointCloudPreprocessor(Node):
 
     def publish_projected_wall_cloud(self, points, approved_indices,
                                      sensor_origin, stamp):
-        enabled = bool(self.get_parameter('publish_projected_wall').value)
-        if enabled:
-            cloud = self.create_projected_wall_cloud(
-                points, approved_indices, sensor_origin, stamp)
-            self.projected_wall_pub.publish(cloud)
-            self.projected_wall_visible = True
-        elif self.projected_wall_visible:
-            empty_cloud = self.create_projected_wall_cloud(
-                points, approved_indices, sensor_origin, stamp, empty=True)
-            self.projected_wall_pub.publish(empty_cloud)
-            self.projected_wall_visible = False
+        if not self.publish_projected_wall_enabled:
+            return
+        cloud = self.create_projected_wall_cloud(
+            points, approved_indices, sensor_origin, stamp)
+        self.projected_wall_pub.publish(cloud)
 
     def clear_temporal_history(self):
         self.temporal_history.clear()
@@ -442,6 +458,7 @@ class PointCloudPreprocessor(Node):
             self.get_parameter('temporal_max_translation_jump').value)
         temporal_max_rotation_jump = float(
             self.get_parameter('temporal_max_rotation_jump').value)
+        debug_restart_required = []
         for parameter in parameters:
             if parameter.name == 'lateral_min':
                 lateral_min = float(parameter.value)
@@ -459,6 +476,24 @@ class PointCloudPreprocessor(Node):
                 temporal_max_translation_jump = float(parameter.value)
             elif parameter.name == 'temporal_max_rotation_jump':
                 temporal_max_rotation_jump = float(parameter.value)
+            elif parameter.name == 'publish_intermediate_clouds':
+                if bool(parameter.value) != \
+                        self.publish_intermediate_clouds_enabled:
+                    debug_restart_required.append(parameter.name)
+            elif parameter.name == 'publish_filter_bounds':
+                if bool(parameter.value) != self.publish_filter_bounds_enabled:
+                    debug_restart_required.append(parameter.name)
+            elif parameter.name == 'publish_projected_wall':
+                if bool(parameter.value) != \
+                        self.publish_projected_wall_enabled:
+                    debug_restart_required.append(parameter.name)
+
+        if debug_restart_required:
+            names = ', '.join(debug_restart_required)
+            return SetParametersResult(
+                successful=False,
+                reason=f'Restart the node to change debug flags: {names}',
+            )
 
         try:
             validate_lateral_limits(lateral_min, lateral_max)
@@ -707,19 +742,20 @@ class PointCloudPreprocessor(Node):
             spatial_rgb[temporal_mask] if spatial_rgb is not None else None)
         approved_indices = spatial_indices[temporal_mask]
 
-        sensor_origin = np.array([
-            transform.transform.translation.x,
-            transform.transform.translation.y,
-            transform.transform.translation.z,
-        ], dtype=np.float32)
-        self.publish_projected_wall_cloud(
-            transformed_all,
-            approved_indices,
-            sensor_origin,
-            msg.header.stamp,
-        )
+        if self.publish_projected_wall_enabled:
+            sensor_origin = np.array([
+                transform.transform.translation.x,
+                transform.transform.translation.y,
+                transform.transform.translation.z,
+            ], dtype=np.float32)
+            self.publish_projected_wall_cloud(
+                transformed_all,
+                approved_indices,
+                sensor_origin,
+                msg.header.stamp,
+            )
 
-        if self.get_parameter('publish_intermediate_clouds').value:
+        if self.publish_intermediate_clouds_enabled:
             self.distance_pub.publish(self.make_cloud(
                 distance_points, msg.header.stamp, msg.header.frame_id,
                 distance_rgb))

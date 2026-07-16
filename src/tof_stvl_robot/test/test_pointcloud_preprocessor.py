@@ -1,3 +1,4 @@
+import ast
 from collections import deque
 from pathlib import Path
 
@@ -7,9 +8,7 @@ import numpy as np
 import pytest
 from sensor_msgs_py import point_cloud2
 from tf2_ros import TransformException
-import yaml
-
-from tof_stvl_test.pointcloud_preprocessor import (
+from tof_stvl_robot.pointcloud_preprocessor import (
     filter_lateral,
     make_bounds_line_points,
     PointCloudPreprocessor,
@@ -20,6 +19,7 @@ from tof_stvl_test.pointcloud_preprocessor import (
     validate_lateral_limits,
     validate_projected_wall_epsilon,
 )
+import yaml
 
 
 class Parameter:
@@ -132,6 +132,9 @@ class ProcessorHarness(PointCloudPreprocessor):
         self.filter_bounds_visible = False
         self.projected_wall_visible = False
         self.projected_wall_epsilon = 0.001
+        self.publish_intermediate_clouds_enabled = True
+        self.publish_filter_bounds_enabled = True
+        self.publish_projected_wall_enabled = True
         self.logger = Logger()
         self.clock = Clock()
 
@@ -219,6 +222,42 @@ def test_empty_lateral_cloud_is_published():
     assert list(point_cloud2.read_points(lateral)) == []
 
 
+def test_debug_flags_require_node_restart():
+    processor = ProcessorHarness()
+
+    result = PointCloudPreprocessor.parameter_callback(
+        processor,
+        [ParameterUpdate('publish_intermediate_clouds', False)],
+    )
+
+    assert not result.successful
+    assert 'Restart the node' in result.reason
+
+
+def test_production_debug_profile_skips_debug_processing():
+    processor = ProcessorHarness()
+    processor.parameters['publish_intermediate_clouds'] = False
+    processor.parameters['publish_filter_bounds'] = False
+    processor.parameters['publish_projected_wall'] = False
+    processor.publish_intermediate_clouds_enabled = False
+    processor.publish_filter_bounds_enabled = False
+    processor.publish_projected_wall_enabled = False
+
+    def fail_if_wall_is_processed(*_args, **_kwargs):
+        pytest.fail('projected wall must not run in the production profile')
+
+    processor.publish_projected_wall_cloud = fail_if_wall_is_processed
+    message = make_input_cloud([[0.50, 0.0, 0.20]])
+
+    PointCloudPreprocessor.cloud_callback(processor, message)
+
+    assert processor.output_pub.messages[-1].width == 1
+    assert processor.distance_pub.messages == []
+    assert processor.height_pub.messages == []
+    assert processor.lateral_pub.messages == []
+    assert processor.spatial_pub.messages == []
+
+
 def test_filter_bounds_line_list_geometry_starts_at_tof():
     points = make_bounds_line_points(
         1.20, 0.05, 0.60, -0.25, 0.25, origin_x=0.26)
@@ -232,7 +271,7 @@ def test_filter_bounds_line_list_geometry_starts_at_tof():
     assert max(point.z for point in points) == pytest.approx(0.60)
 
 
-def test_filter_bounds_marker_metadata_and_disable_cleanup():
+def test_filter_bounds_marker_metadata():
     processor = ProcessorHarness()
 
     processor.publish_filter_bounds_marker()
@@ -246,13 +285,6 @@ def test_filter_bounds_marker_metadata_and_disable_cleanup():
     assert marker.scale.x == pytest.approx(0.01)
     assert 0.0 < marker.color.a < 1.0
     assert len(marker.points) == 24
-
-    processor.parameters['publish_filter_bounds'] = False
-    processor.publish_filter_bounds_marker()
-    assert processor.filter_bounds_pub.messages[-1].action == marker.DELETE
-    published_count = len(processor.filter_bounds_pub.messages)
-    processor.publish_filter_bounds_marker()
-    assert len(processor.filter_bounds_pub.messages) == published_count
 
 
 def test_projected_wall_uses_real_rays_and_omits_approved_indices():
@@ -277,7 +309,7 @@ def test_invalid_projected_wall_epsilon_is_rejected(epsilon):
         validate_projected_wall_epsilon(epsilon)
 
 
-def test_projected_wall_cloud_frame_and_disable_cleanup():
+def test_projected_wall_cloud_frame():
     processor = ProcessorHarness()
     rays = np.array([[0.60, 0.00, 0.20]], dtype=np.float32)
     origin = np.zeros(3, dtype=np.float32)
@@ -288,12 +320,6 @@ def test_projected_wall_cloud_frame_and_disable_cleanup():
     assert cloud.header.stamp == Time()
     assert cloud.width > 0
     assert [field.name for field in cloud.fields] == ['x', 'y', 'z']
-
-    processor.parameters['publish_projected_wall'] = False
-    processor.publish_projected_wall_cloud(rays, [], origin, Time())
-    empty_cloud = processor.projected_wall_pub.messages[-1]
-    assert empty_cloud.header.frame_id == 'base_footprint'
-    assert empty_cloud.width == 0
 
 
 def test_projected_wall_aligns_with_filter_bounds_front_face():
@@ -505,27 +531,103 @@ def test_temporal_frame_or_required_frames_change_clears_history(update):
     assert processor.temporal_last_transform is None
 
 
-def test_stvl_subscribes_only_to_filtered_obstacle_cloud():
+def test_production_yaml_contains_only_preprocessor_parameters():
     package_root = Path(__file__).parents[1]
     with open(
-            package_root / 'config' / 'tof_pointcloud_filters.yaml',
+            package_root / 'config' / 'tof_robot_preprocessor.yaml',
             encoding='utf-8') as config_file:
         config = yaml.safe_load(config_file)
 
-    stvl = config['local_costmap']['local_costmap']['ros__parameters'][
-        'stvl_layer']
-    assert stvl['observation_sources'] == 'pointcloud'
-    assert stvl['pointcloud']['topic'] == \
+    assert set(config) == {'tof_pointcloud_preprocessor'}
+    parameters = config['tof_pointcloud_preprocessor']['ros__parameters']
+    required = {
+        'input_topic', 'output_topic', 'target_frame', 'output_frame',
+        'transform_timeout', 'distance_min', 'distance_max', 'height_min',
+        'height_max', 'lateral_min', 'lateral_max', 'radius_search',
+        'min_neighbors', 'temporal_required_frames',
+        'temporal_match_radius', 'temporal_reference_frame',
+        'temporal_max_frame_gap', 'temporal_clear_history_on_tf_failure',
+        'temporal_max_translation_jump', 'temporal_max_rotation_jump',
+        'publish_intermediate_clouds', 'publish_filter_bounds',
+        'publish_projected_wall', 'projected_wall_epsilon',
+    }
+    assert set(parameters) == required
+    assert parameters['output_topic'] == \
         '/ground_segmentation/obstacle_points'
-    assert 'projected_wall' not in str(stvl)
+    assert parameters['target_frame'] == 'base_footprint'
+    assert parameters['output_frame'] == 'tof'
+    assert parameters['temporal_reference_frame'] == 'odom'
+    assert parameters['publish_intermediate_clouds'] is False
+    assert parameters['publish_filter_bounds'] is False
+    assert parameters['publish_projected_wall'] is False
+    assert 'local_costmap' not in config
 
 
-def test_launch_can_disable_static_test_odometry_tf():
+def test_stvl_reference_uses_only_production_topic():
     package_root = Path(__file__).parents[1]
-    launch_source = (
-        package_root / 'launch' / 'stvl_maixsense_test.launch.py'
-    ).read_text(encoding='utf-8')
+    with open(
+            package_root / 'config' / 'nav2_stvl_a010_example.yaml',
+            encoding='utf-8') as config_file:
+        config = yaml.safe_load(config_file)
 
-    assert "DeclareLaunchArgument(\n            'publish_static_odom_tf'" in \
-        launch_source
-    assert "LaunchConfiguration('publish_static_odom_tf')" in launch_source
+    source = config['stvl_layer']['pointcloud']
+    assert config['stvl_layer']['observation_sources'] == 'pointcloud'
+    assert source['topic'] == '/ground_segmentation/obstacle_points'
+    assert source['data_type'] == 'PointCloud2'
+    assert source['sensor_frame'] == 'tof'
+    assert '/tof_filters/' not in str(config)
+
+
+def test_production_launch_contains_exactly_two_nodes():
+    package_root = Path(__file__).parents[1]
+    launch_path = package_root / 'launch' / 'tof_robot_bringup.launch.py'
+    launch_source = launch_path.read_text(encoding='utf-8')
+    tree = ast.parse(launch_source)
+    node_calls = [
+        call for call in ast.walk(tree)
+        if isinstance(call, ast.Call) and
+        isinstance(call.func, ast.Name) and call.func.id == 'Node'
+    ]
+
+    assert len(node_calls) == 2
+    assert "package='sipeed_tof_ms_a010'" in launch_source
+    assert "package='tof_stvl_robot'" in launch_source
+    assert 'nav2_costmap_2d' not in launch_source
+    assert 'nav2_lifecycle_manager' not in launch_source
+    assert 'robot_state_publisher' not in launch_source
+    assert 'static_transform_publisher' not in launch_source
+    assert 'use_sim_time' not in launch_source
+    assert 'nav2_stvl_a010_example.yaml' not in launch_source
+
+
+def test_package_has_no_bench_artifacts_or_old_name():
+    package_root = Path(__file__).parents[1]
+    repository_root = package_root.parents[1]
+    all_files = [
+        path for path in package_root.rglob('*')
+        if path.is_file() and '__pycache__' not in path.parts
+    ]
+    legacy_package_name = 'tof_' + 'stvl_test'
+    combined_text = '\n'.join(
+        path.read_text(encoding='utf-8', errors='ignore')
+        for path in all_files if path != Path(__file__)
+    )
+
+    assert package_root.name == 'tof_stvl_robot'
+    assert not (repository_root / 'src' / legacy_package_name).exists()
+    assert not (package_root / 'urdf').exists()
+    assert not (package_root / 'tof_stvl_robot' /
+                'fake_obstacle_cloud.py').exists()
+    assert legacy_package_name not in combined_text
+    assert 'use_sim_time: true' not in combined_text
+
+
+def test_setup_installs_production_launch_and_executable_only():
+    package_root = Path(__file__).parents[1]
+    setup_source = (package_root / 'setup.py').read_text(encoding='utf-8')
+
+    assert "package_name = 'tof_stvl_robot'" in setup_source
+    assert "glob('launch/*.launch.py')" in setup_source
+    assert 'pointcloud_preprocessor' in setup_source
+    assert 'fake_obstacle_cloud' not in setup_source
+    assert len(list((package_root / 'launch').glob('*.launch.py'))) == 1

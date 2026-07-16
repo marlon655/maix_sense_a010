@@ -1,242 +1,155 @@
-# MaixSense A010 ROS 2 Driver Test Workspace
+# MaixSense A010 para ROS 2 Jazzy
 
-Workspace isolado para testar o driver ROS 2 do Sipeed MaixSense A010 e validar
-publicacao de nuvem de pontos, STVL e recuperacao de falhas de USB.
+Este repositorio fornece dois pacotes para uso do MaixSense A010 no robo real:
 
-## Principais ajustes deste driver
+- `sipeed_tof_ms_a010`: driver serial, `/depth` e `/cloud`;
+- `tof_stvl_robot`: pre-processamento e publicacao da nuvem filtrada.
 
-- Remove a sequencia `AT+ISP=0` / `AT+ISP=1`, que podia deixar o sensor em
-  `ISP is busy` / `Dragonfly ISP stop failed`.
-- Para stream antigo com `AT+DISP=1` antes de iniciar.
-- Drena dados binarios pendentes antes de mandar comandos AT.
-- Aceita resposta JSON direta de `AT+COEFF?`.
-- Limita o loop de leitura para evitar travar o node dentro do callback.
-- Adiciona watchdog de `/cloud`.
-- Reabre a serial se a USB cair e voltar como outra `/dev/ttyUSB*`.
-- Aceita stream binario ja ativo apos reconexao USB.
-- Reseta o buffer interno do parser apos reiniciar/reconectar.
-- Descarta cabecalho invalido no parser para nao ficar preso em lixo de frame.
+O repositorio nao inicia Nav2, costmaps, STVL, odometria, URDF ou TFs.
 
-Fluxo atual:
+## Uso no robo real com workspace separado
+
+Arquitetura:
 
 ```text
-Inicializacao: AT+DISP=1 -> drain -> AT -> AT+COEFF? -> AT+DISP=3
-Watchdog: se /cloud parar -> reabre serial -> procura ttyUSB -> reseta parser -> volta a publicar
-Nao usa: AT+ISP=0 / AT+ISP=1
+tof_robot_ws                                      robot_ws
+MaixSense A010                                    odometria real
+  -> sipeed_tof_node                                -> odom -> base_footprint
+  -> /cloud                                       URDF oficial
+  -> tof_pointcloud_preprocessor                    -> base_footprint -> tof
+  -> /ground_segmentation/obstacle_points         Nav2 oficial
+                                                    -> STVL/local costmap
 ```
 
-## Build
+| Responsabilidade | tof_robot_ws | robot_ws |
+|---|---:|---:|
+| Driver A010 | sim | nao |
+| Pre-processamento | sim | nao |
+| Odometria | nao | sim |
+| URDF/TF do sensor | nao | sim |
+| STVL | nao | sim |
+| Local costmap | nao | sim |
+| Nav2 | nao | sim |
+
+### Instalacao e compilacao
 
 ```bash
-cd ~/tof_test_ws
+mkdir -p ~/tof_robot_ws/src
+cd ~/tof_robot_ws/src
+
+git clone \
+  --branch tof_robot \
+  --single-branch \
+  https://github.com/marlon655/maix_sense_a010.git
+
+cd ~/tof_robot_ws
 source /opt/ros/jazzy/setup.bash
-colcon build --packages-select sipeed_tof_ms_a010
-source install/setup.bash
+
+rosdep install --from-paths src --ignore-src -r -y
+
+colcon build \
+  --packages-select sipeed_tof_ms_a010 tof_stvl_robot \
+  --symlink-install
 ```
 
-Para buildar tambem os testes STVL:
+### Ordem dos overlays e execucao
 
-```bash
-colcon build
-source install/setup.bash
-```
-
-## Usar em outro workspace ROS 2
-
-Para uso real em outro workspace, o pacote essencial e apenas:
+Use sempre esta ordem:
 
 ```text
-src/sipeed_tof_ms_a010
+ROS 2 Jazzy -> robot_ws -> tof_robot_ws
 ```
 
-O restante do repositorio e material de teste/documentacao:
-
-```text
-src/tof_stvl_test              # testes locais com STVL/costmap
-run_*.sh                       # scripts de teste
-tutorial_testes_maixsense_*.md # roteiro detalhado dos testes
-maixsense_a010_falha_*.md      # anotacoes da investigacao da falha
-```
-
-Exemplo para copiar/clonar o driver em outro workspace:
+Com o bringup oficial do robo ativo em outro terminal:
 
 ```bash
-cd ~/seu_ws
 source /opt/ros/jazzy/setup.bash
-colcon build --packages-select sipeed_tof_ms_a010
-source install/setup.bash
+source ~/robot_ws/install/setup.bash
+source ~/tof_robot_ws/install/setup.bash
+
+ros2 launch tof_stvl_robot tof_robot_bringup.launch.py \
+  device:=/dev/tof
 ```
 
-Executavel principal:
+O launch inicia exclusivamente:
 
-```bash
-ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args \
-  -p device:=/dev/tof \
-  -p watchdog_timeout_sec:=3.0 \
-  -p watchdog_cooldown_sec:=1.0
-```
+- `sipeed_tof_ms_a010/sipeed_tof_node`;
+- `tof_stvl_robot/pointcloud_preprocessor`.
 
-Tambem existe um arquivo de parametros para aplicar configuracoes AT no startup:
+### TFs obrigatorias
+
+O `robot_ws` deve fornecer:
 
 ```text
-src/sipeed_tof_ms_a010/config/maixsense_params.yaml
+odom -> base_footprint       dinamica, publicada pela odometria
+base_footprint -> tof        fixa, publicada pelo URDF oficial
 ```
 
-Uso:
+Valide:
 
 ```bash
-ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args \
-  --params-file src/sipeed_tof_ms_a010/config/maixsense_params.yaml
+ros2 run tf2_ros tf2_echo odom base_footprint
+ros2 run tf2_ros tf2_echo base_footprint tof
+ros2 run tf2_tools view_frames
 ```
 
-Parametros AT disponiveis no YAML:
+A altura fisica aproximada de `0,22 m` pertence ao URDF. `height_min` e
+`height_max` sao limites de obstaculos e nao corrigem a pose do sensor.
+
+### Integracao com Nav2
+
+O Nav2 oficial deve consumir somente:
 
 ```text
-sensor_fps        # envia AT+FPS=<valor> no startup
-sensor_binn       # envia AT+BINN=<valor> no startup
-sensor_unit       # envia AT+UNIT=<valor> no startup
-sensor_baud_code  # envia AT+BAUD=<valor> no startup, perigoso
+/ground_segmentation/obstacle_points
 ```
 
-Use `-1` para nao aplicar um parametro. Recomenda-se manter
-`sensor_baud_code: -1` salvo salvo se tiver certeza do codigo de baud esperado
-pelo firmware e pelo host.
+Use `tof_stvl_robot/config/nav2_stvl_a010_example.yaml` apenas como referencia
+para mesclar a fonte ao STVL existente. Nao crie um segundo local costmap e
+nunca adicione `/tof_filters/*` a `observation_sources`.
 
-Topicos publicados:
+### Debug
 
-```text
-/cloud
-/depth
+O perfil de producao desliga por padrao:
+
+```yaml
+publish_intermediate_clouds: false
+publish_filter_bounds: false
+publish_projected_wall: false
 ```
 
-## Descobrir dispositivo
+Para diagnostico, altere as flags no YAML e reinicie o no. Quando habilitados,
+ficam disponiveis `/tof_filters/distance`, `/height`, `/lateral`, `/spatial`,
+`/filter_bounds` e `/projected_wall`. A nuvem final permanece ativa em ambos os
+perfis.
+
+### Validacao rapida
 
 ```bash
-ls -l /dev/tof /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
-```
-
-O `/dev/ttyUSB0` usado nos exemplos e apenas um exemplo. Antes de rodar o
-driver, confirme em qual porta a interface de dados do MaixSense apareceu.
-
-O A010 normalmente cria duas seriais, por exemplo `/dev/ttyUSB0` e
-`/dev/ttyUSB1`. A porta correta e a que responde `AT` ou ja esta enviando o
-stream binario do sensor.
-
-Para inspecionar as interfaces:
-
-```bash
-udevadm info -q property -n /dev/ttyUSB0 | grep -E 'ID_SERIAL|ID_MODEL|ID_VENDOR|ID_USB_INTERFACE_NUM|ID_PATH'
-udevadm info -q property -n /dev/ttyUSB1 | grep -E 'ID_SERIAL|ID_MODEL|ID_VENDOR|ID_USB_INTERFACE_NUM|ID_PATH'
-```
-
-Se nao existir `/dev/tof`, use a `/dev/ttyUSB*` correta. Se `/dev/tof` existir,
-confira para onde aponta:
-
-```bash
-readlink -f /dev/tof
-```
-
-No PC final, recomenda-se criar regra udev para `/dev/tof` apontar sempre para a
-interface de dados correta.
-
-## Rodar driver isolado
-
-Troque `/dev/ttyUSB0` pela porta correta encontrada na etapa anterior, se
-necessario.
-
-```bash
-ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args -p device:=/dev/tof
-```
-
-Ou:
-
-```bash
-ros2 run sipeed_tof_ms_a010 sipeed_tof_node --ros-args \
-  -p device:=/dev/ttyUSB0 \
-  -p watchdog_timeout_sec:=3.0 \
-  -p watchdog_cooldown_sec:=1.0
-```
-
-## Conferir topicos
-
-Em outro terminal:
-
-```bash
-cd ~/tof_test_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 topic list | grep -E "cloud|depth"
-ros2 topic echo /cloud --once
-```
-
-Para acompanhar a taxa:
-
-```bash
+ros2 node list
 ros2 topic hz /cloud
+ros2 topic hz /ground_segmentation/obstacle_points
+ros2 topic echo /ground_segmentation/obstacle_points --once --field header
+ros2 param dump /tof_pointcloud_preprocessor
 ```
 
-Valor esperado nos testes locais: perto de `6 a 7 Hz`.
+### Problemas comuns
 
-## Configurar parametros AT manualmente
+- `/cloud` ausente: confira driver, dispositivo e permissao serial.
+- `/dev/tof` ausente: localize a interface real em `/dev/ttyUSB*`.
+- permissao negada: confira o grupo `dialout` e refaca login.
+- TF `base_footprint -> tof` ausente: corrija o URDF/bringup oficial.
+- TF `odom -> base_footprint` ausente: inicie a odometria real.
+- topico final sem subscriber: confirme o YAML efetivo do Nav2.
+- `/tof_filters/*` ausentes: o debug vem desligado em producao.
+- duas autoridades TF: remova o publicador duplicado.
+- pacote nao encontrado: respeite a ordem dos overlays.
 
-O driver ja configura o necessario para publicar `/cloud`: ele para stream antigo,
-consulta `AT+COEFF?` e inicia com `AT+DISP=3`. Normalmente nao precisa alterar os
-parametros internos do sensor.
+## Documentacao completa
 
-Se precisar testar configuracoes como `FPS`, `BINN`, `UNIT` ou `BAUD`, use o
-helper interativo:
+Veja [instalacao e validacao do tof_robot_ws](docs/tof_robot_ws_installation.md)
+para o procedimento desde zero, dispositivo serial, testes de hardware,
+integracao STVL e checklist de seguranca.
 
-```bash
-cd ~/tof_test_ws
-python3 tools/maixsense_at_config.py --device /dev/ttyUSB0
-```
-
-Troque `/dev/ttyUSB0` pela porta correta do sensor.
-
-O script:
-
-- para o stream com `AT+DISP=1` antes de consultar/enviar comandos;
-- mostra valores atuais com `AT+FPS?`, `AT+BAUD?`, `AT+UNIT?`, `AT+BINN?` e `AT+DISP?`;
-- permite deixar cada campo em branco para manter o valor atual;
-- salva o plano em `maixsense_at_configs/*.json` antes de enviar;
-- exige confirmacao extra para alterar `BAUD`.
-
-Na parte de comandos customizados, exemplos validos sao:
-
-```text
-AT+BAUD?   # consulta baud configurado
-AT+FPS?    # consulta FPS configurado
-AT+FPS=10  # altera FPS para 10
-AT+DISP=1  # para stream USB
-AT+DISP=3  # inicia stream USB
-```
-
-Use letras maiusculas nos comandos AT, seguindo o formato do manual/wiki.
-
-Para simular sem enviar comandos:
-
-```bash
-python3 tools/maixsense_at_config.py --device /dev/ttyUSB0 --dry-run
-```
-
-Evite alterar `BAUD` e `UNIT` sem necessidade. `BAUD` pode quebrar a comunicacao
-se o host e o sensor ficarem em velocidades diferentes; `UNIT` altera a escala de
-profundidade e pode exigir recalibrar a conversao de distancia no driver.
-
-## Se der permissao negada
-
-```bash
-sudo usermod -aG dialout $USER
-```
-
-Depois saia e entre novamente na sessao.
-
-## Observacao sobre AT+COEFF
-
-Este workspace usa a versao local do driver que aceita a resposta JSON direta do
-sensor no comando `AT+COEFF?`, alem do formato antigo `+COEFF=1`.
-
-## Tutorial completo
-
-Veja [tutorial_testes_maixsense_a010.md](tutorial_testes_maixsense_a010.md) para
-os testes de stress, watchdog, STVL e RViz.
+Detalhes do driver permanecem em
+[src/sipeed_tof_ms_a010/USAGE.md](src/sipeed_tof_ms_a010/USAGE.md).
