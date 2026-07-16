@@ -86,6 +86,89 @@ def filter_temporal(points, history, required_frames, match_radius):
     return points[mask]
 
 
+def stamp_to_nanoseconds(stamp):
+    return int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
+
+
+def temporal_timestamp_reset_reason(last_stamp_ns, stamp, max_frame_gap):
+    if last_stamp_ns is None:
+        return None
+
+    stamp_ns = stamp_to_nanoseconds(stamp)
+    if stamp_ns <= last_stamp_ns:
+        return 'PointCloud2 timestamp did not advance'
+
+    gap_seconds = (stamp_ns - last_stamp_ns) / 1_000_000_000.0
+    if gap_seconds > max_frame_gap:
+        return (
+            f'PointCloud2 frame gap {gap_seconds:.3f}s exceeds '
+            f'temporal_max_frame_gap {max_frame_gap:.3f}s')
+    return None
+
+
+def temporal_transform_is_discontinuous(previous, current,
+                                        max_translation_jump,
+                                        max_rotation_jump):
+    if previous is None:
+        return False
+
+    previous_translation = np.array([
+        previous.transform.translation.x,
+        previous.transform.translation.y,
+        previous.transform.translation.z,
+    ], dtype=np.float64)
+    current_translation = np.array([
+        current.transform.translation.x,
+        current.transform.translation.y,
+        current.transform.translation.z,
+    ], dtype=np.float64)
+    if not np.all(np.isfinite(previous_translation)) or not np.all(
+            np.isfinite(current_translation)):
+        return True
+    if np.linalg.norm(current_translation - previous_translation) > \
+            max_translation_jump:
+        return True
+
+    previous_rotation = np.array([
+        previous.transform.rotation.x,
+        previous.transform.rotation.y,
+        previous.transform.rotation.z,
+        previous.transform.rotation.w,
+    ], dtype=np.float64)
+    current_rotation = np.array([
+        current.transform.rotation.x,
+        current.transform.rotation.y,
+        current.transform.rotation.z,
+        current.transform.rotation.w,
+    ], dtype=np.float64)
+    previous_norm = np.linalg.norm(previous_rotation)
+    current_norm = np.linalg.norm(current_rotation)
+    if (not np.isfinite(previous_norm) or not np.isfinite(current_norm) or
+            previous_norm <= 1e-12 or current_norm <= 1e-12):
+        return True
+    previous_rotation /= previous_norm
+    current_rotation /= current_norm
+    quaternion_dot = np.clip(
+        np.abs(np.dot(previous_rotation, current_rotation)), 0.0, 1.0)
+    rotation_jump = 2.0 * np.arccos(quaternion_dot)
+    return rotation_jump > max_rotation_jump
+
+
+def validate_temporal_configuration(reference_frame, max_frame_gap,
+                                    max_translation_jump,
+                                    max_rotation_jump):
+    if not isinstance(reference_frame, str) or not reference_frame.strip():
+        raise ValueError('temporal_reference_frame must not be empty')
+    values = {
+        'temporal_max_frame_gap': max_frame_gap,
+        'temporal_max_translation_jump': max_translation_jump,
+        'temporal_max_rotation_jump': max_rotation_jump,
+    }
+    for name, value in values.items():
+        if not np.isfinite(value) or value <= 0.0:
+            raise ValueError(f'{name} must be finite and greater than zero')
+
+
 def make_bounds_line_points(distance_max, height_min, height_max,
                             lateral_min, lateral_max, origin_x=0.0):
     front_x = origin_x + distance_max
@@ -175,6 +258,11 @@ class PointCloudPreprocessor(Node):
         self.declare_parameter('min_neighbors', 3)
         self.declare_parameter('temporal_required_frames', 3)
         self.declare_parameter('temporal_match_radius', 0.05)
+        self.declare_parameter('temporal_reference_frame', 'odom')
+        self.declare_parameter('temporal_max_frame_gap', 0.50)
+        self.declare_parameter('temporal_clear_history_on_tf_failure', True)
+        self.declare_parameter('temporal_max_translation_jump', 1.0)
+        self.declare_parameter('temporal_max_rotation_jump', 1.5708)
         self.declare_parameter('publish_intermediate_clouds', True)
         self.declare_parameter('publish_filter_bounds', True)
         self.declare_parameter('publish_projected_wall', True)
@@ -186,18 +274,36 @@ class PointCloudPreprocessor(Node):
         self.lateral_max = float(self.get_parameter('lateral_max').value)
         self.projected_wall_epsilon = float(
             self.get_parameter('projected_wall_epsilon').value)
+        self.temporal_history_frame = str(
+            self.get_parameter('temporal_reference_frame').value)
+        self.temporal_history_required_frames = max(
+            1, int(self.get_parameter('temporal_required_frames').value))
+        temporal_max_frame_gap = float(
+            self.get_parameter('temporal_max_frame_gap').value)
+        temporal_max_translation_jump = float(
+            self.get_parameter('temporal_max_translation_jump').value)
+        temporal_max_rotation_jump = float(
+            self.get_parameter('temporal_max_rotation_jump').value)
         try:
             validate_lateral_limits(self.lateral_min, self.lateral_max)
             validate_projected_wall_epsilon(self.projected_wall_epsilon)
+            validate_temporal_configuration(
+                self.temporal_history_frame,
+                temporal_max_frame_gap,
+                temporal_max_translation_jump,
+                temporal_max_rotation_jump,
+            )
         except ValueError as error:
             self.get_logger().error(f'Invalid filter configuration: {error}')
             raise
-        self.parameter_callback_handle = self.add_on_set_parameters_callback(
-            self.parameter_callback)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.history = deque()
+        self.temporal_history = deque()
+        self.temporal_last_stamp_ns = None
+        self.temporal_last_transform = None
+        self.parameter_callback_handle = self.add_on_set_parameters_callback(
+            self.parameter_callback)
 
         self.output_pub = self.create_publisher(PointCloud2, output_topic, 10)
         self.distance_pub = self.create_publisher(
@@ -319,10 +425,23 @@ class PointCloudPreprocessor(Node):
             self.projected_wall_pub.publish(empty_cloud)
             self.projected_wall_visible = False
 
+    def clear_temporal_history(self):
+        self.temporal_history.clear()
+        self.temporal_last_stamp_ns = None
+        self.temporal_last_transform = None
+
     def parameter_callback(self, parameters):
         lateral_min = self.lateral_min
         lateral_max = self.lateral_max
         projected_wall_epsilon = self.projected_wall_epsilon
+        temporal_reference_frame = self.temporal_history_frame
+        temporal_required_frames = self.temporal_history_required_frames
+        temporal_max_frame_gap = float(
+            self.get_parameter('temporal_max_frame_gap').value)
+        temporal_max_translation_jump = float(
+            self.get_parameter('temporal_max_translation_jump').value)
+        temporal_max_rotation_jump = float(
+            self.get_parameter('temporal_max_rotation_jump').value)
         for parameter in parameters:
             if parameter.name == 'lateral_min':
                 lateral_min = float(parameter.value)
@@ -330,16 +449,41 @@ class PointCloudPreprocessor(Node):
                 lateral_max = float(parameter.value)
             elif parameter.name == 'projected_wall_epsilon':
                 projected_wall_epsilon = float(parameter.value)
+            elif parameter.name == 'temporal_reference_frame':
+                temporal_reference_frame = str(parameter.value)
+            elif parameter.name == 'temporal_required_frames':
+                temporal_required_frames = max(1, int(parameter.value))
+            elif parameter.name == 'temporal_max_frame_gap':
+                temporal_max_frame_gap = float(parameter.value)
+            elif parameter.name == 'temporal_max_translation_jump':
+                temporal_max_translation_jump = float(parameter.value)
+            elif parameter.name == 'temporal_max_rotation_jump':
+                temporal_max_rotation_jump = float(parameter.value)
 
         try:
             validate_lateral_limits(lateral_min, lateral_max)
             validate_projected_wall_epsilon(projected_wall_epsilon)
+            validate_temporal_configuration(
+                temporal_reference_frame,
+                temporal_max_frame_gap,
+                temporal_max_translation_jump,
+                temporal_max_rotation_jump,
+            )
         except (TypeError, ValueError) as error:
             return SetParametersResult(successful=False, reason=str(error))
 
+        temporal_configuration_changed = (
+            temporal_reference_frame != self.temporal_history_frame or
+            temporal_required_frames !=
+            self.temporal_history_required_frames
+        )
         self.lateral_min = lateral_min
         self.lateral_max = lateral_max
         self.projected_wall_epsilon = projected_wall_epsilon
+        if temporal_configuration_changed:
+            self.clear_temporal_history()
+        self.temporal_history_frame = temporal_reference_frame
+        self.temporal_history_required_frames = temporal_required_frames
         return SetParametersResult(successful=True)
 
     @staticmethod
@@ -483,19 +627,85 @@ class PointCloudPreprocessor(Node):
 
         required_frames = max(
             1, int(self.get_parameter('temporal_required_frames').value))
-        temporal_mask = temporal_filter_mask(
-            spatial_points,
-            self.history,
-            required_frames,
-            float(self.get_parameter('temporal_match_radius').value),
+        temporal_reference_frame = str(
+            self.get_parameter('temporal_reference_frame').value)
+        if (temporal_reference_frame != self.temporal_history_frame or
+                required_frames != self.temporal_history_required_frames):
+            self.clear_temporal_history()
+            self.temporal_history_frame = temporal_reference_frame
+            self.temporal_history_required_frames = required_frames
+
+        temporal_max_frame_gap = float(
+            self.get_parameter('temporal_max_frame_gap').value)
+        timestamp_reset_reason = temporal_timestamp_reset_reason(
+            self.temporal_last_stamp_ns,
+            msg.header.stamp,
+            temporal_max_frame_gap,
         )
+        if timestamp_reset_reason is not None:
+            self.get_logger().warning(
+                f'Clearing temporal history: {timestamp_reset_reason}',
+                throttle_duration_sec=2.0,
+            )
+            self.clear_temporal_history()
+
+        try:
+            temporal_transform = self.tf_buffer.lookup_transform(
+                temporal_reference_frame,
+                target_frame,
+                Time.from_msg(msg.header.stamp),
+                timeout=Duration(
+                    seconds=float(
+                        self.get_parameter('transform_timeout').value)),
+            )
+        except TransformException as error:
+            self.get_logger().warning(
+                f'Cannot transform temporal cloud from {target_frame} to '
+                f'{temporal_reference_frame}: {error}',
+                throttle_duration_sec=2.0,
+            )
+            if bool(self.get_parameter(
+                    'temporal_clear_history_on_tf_failure').value):
+                self.clear_temporal_history()
+            temporal_mask = np.zeros(len(spatial_points), dtype=bool)
+        else:
+            transform_discontinuous = temporal_transform_is_discontinuous(
+                self.temporal_last_transform,
+                temporal_transform,
+                float(self.get_parameter(
+                    'temporal_max_translation_jump').value),
+                float(self.get_parameter(
+                    'temporal_max_rotation_jump').value),
+            )
+            if transform_discontinuous:
+                self.get_logger().warning(
+                    'Clearing temporal history after an odometry transform '
+                    'discontinuity',
+                    throttle_duration_sec=2.0,
+                )
+                self.clear_temporal_history()
+
+            spatial_points_temporal = self.transform_points(
+                spatial_points, temporal_transform)
+            temporal_mask = temporal_filter_mask(
+                spatial_points_temporal,
+                self.temporal_history,
+                required_frames,
+                float(self.get_parameter('temporal_match_radius').value),
+            )
+            self.temporal_history.append(spatial_points_temporal.copy())
+            while len(self.temporal_history) > max(0, required_frames - 1):
+                self.temporal_history.popleft()
+            self.temporal_last_stamp_ns = stamp_to_nanoseconds(
+                msg.header.stamp)
+            self.temporal_last_transform = temporal_transform
+
+        # A mascara e calculada no frame temporal, mas seleciona os arrays do
+        # frame atual em base_footprint para preservar XYZ, RGB e indices.
         output_points = spatial_points[temporal_mask]
         output_rgb = (
             spatial_rgb[temporal_mask] if spatial_rgb is not None else None)
         approved_indices = spatial_indices[temporal_mask]
-        self.history.append(spatial_points.copy())
-        while len(self.history) > max(0, required_frames - 1):
-            self.history.popleft()
 
         sensor_origin = np.array([
             transform.transform.translation.x,

@@ -3,6 +3,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -23,11 +24,24 @@ def generate_launch_description():
         DeclareLaunchArgument('tof_x', default_value='0.26'),
         DeclareLaunchArgument('tof_y', default_value='0.0'),
         DeclareLaunchArgument('tof_z', default_value='0.22'),
+        DeclareLaunchArgument(
+            'publish_static_odom_tf',
+            default_value='true',
+            description=(
+                'Publish the static odom -> base_footprint TF used only by '
+                'stationary tests. Set false when robot odometry publishes '
+                'this transform dynamically.'),
+        ),
 
+        # Esta TF mantem os testes de bancada funcionando, mas nao compensa o
+        # movimento. No robo, use publish_static_odom_tf:=false e forneca a TF
+        # odom -> base_footprint dinamicamente pela odometria.
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='static_odom_to_base_footprint',
+            condition=IfCondition(
+                LaunchConfiguration('publish_static_odom_tf')),
             arguments=[
                 '--x', '0', '--y', '0', '--z', '0',
                 '--roll', '0', '--pitch', '0', '--yaw', '0',

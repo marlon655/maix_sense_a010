@@ -6,7 +6,8 @@ tof_pointcloud_preprocessor:
     #   -> transformacao para base_footprint
     #   -> altura e lateral
     #   -> vizinhos no mesmo frame
-    #   -> persistencia entre frames
+    #   -> transformacao para odom e persistencia entre frames
+    #   -> aplicacao da mascara nos pontos atuais em base_footprint
     #   -> transformacao de volta para o frame tof
     #   -> /ground_segmentation/obstacle_points
 
@@ -60,11 +61,26 @@ tof_pointcloud_preprocessor:
     temporal_required_frames: 2
 
     # Distancia maxima, em metros, entre o ponto atual e o ponto correspondente
-    # no historico. O raio de 0,05 m tolera pequenas variacoes da medicao nos
-    # testes com o sensor e o robo parados. O historico esta em base_footprint e
-    # nao compensa movimento por odometria; portanto, este valor pode rejeitar
-    # obstaculos estaticos quando o robo estiver se deslocando rapidamente.
+    # no historico. Como a comparacao ocorre em odom, o raio de 0,05 m representa
+    # principalmente ruido do sensor, erro de odometria e movimento do objeto.
     temporal_match_radius: 0.05
+
+    # Frame fixo usado somente para comparar e armazenar o historico temporal.
+    # Os pontos aprovados continuam em base_footprint e saem no frame tof.
+    temporal_reference_frame: odom
+
+    # Limpa o historico quando o intervalo entre nuvens ultrapassa este valor,
+    # em segundos, evitando comparar amostras temporalmente desconectadas.
+    temporal_max_frame_gap: 0.50
+
+    # Em uma falha da TF base_footprint -> odom, nao reutiliza o historico
+    # anterior quando a transformacao voltar a ficar disponivel.
+    temporal_clear_history_on_tf_failure: true
+
+    # Saltos maiores que estes limites entre poses consecutivas sao tratados
+    # como reset/descontinuidade da odometria. Unidades: metros e radianos.
+    temporal_max_translation_jump: 1.0
+    temporal_max_rotation_jump: 1.5708
 
     # Habilita as nuvens intermediarias de debug. Elas permitem visualizar no
     # RViz a saida de cada etapa, mas nao sao entradas do STVL:
