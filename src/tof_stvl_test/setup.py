@@ -26,6 +26,8 @@ setup(
             'fake_obstacle_cloud = tof_stvl_test.fake_obstacle_cloud:main',
             'pointcloud_preprocessor = '
             'tof_stvl_test.pointcloud_preprocessor:main',
+            'tof_cloud_preprocessor = '
+            'tof_stvl_test.tof_cloud_preprocessor:main',
         ],
     },
 )

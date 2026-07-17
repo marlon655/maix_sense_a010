@@ -1,0 +1,11 @@
+tof_cloud_preprocessor:
+  ros__parameters:
+    input_topic: /cloud
+    output_topic: /tof_preprocessed/ground_input
+    target_frame: base_footprint
+
+    # Somente o alcance do sensor e limitado nesta etapa. Nao existe corte de
+    # altura, pois o ground_segmentation_ros2 precisa receber o piso.
+    distance_min: 0.05
+    distance_max: 2.50
+    transform_timeout: 0.10
