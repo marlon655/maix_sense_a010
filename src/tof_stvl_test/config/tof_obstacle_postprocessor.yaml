@@ -7,11 +7,12 @@ tof_obstacle_postprocessor:
     transform_timeout: 0.10
 
     # Limites aplicados somente aos pontos classificados como obstaculo.
-    distance_max: 2.50
-    height_min: 0.04
-    height_max: 1.20
-    lateral_min: -1.10
-    lateral_max: 1.10
+    # Os limites laterais sao coordenadas assinadas no eixo Y.
+    distance_max: 1.0
+    height_min: 0.01
+    height_max: 1.0
+    lateral_min: -0.20
+    lateral_max: 0.20
 
     # Remocao de pontos isolados dentro de cada frame.
     radius_search: 0.05
