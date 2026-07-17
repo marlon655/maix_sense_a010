@@ -54,6 +54,9 @@ A branch `tof_v0.1` inclui as dependencias `ground_segmentation` e
      -> /ground_segmentation/ground_points [base_footprint]
      -> /ground_segmentation/raw_points [base_footprint]
      -> /ground_segmentation/obstacle_points_raw [base_footprint]
+  -> tof_obstacle_postprocessor
+     -> altura, lateral, espacial e temporal
+     -> /ground_segmentation/obstacle_points [tof]
 ```
 
 O pre-processador remove apenas pontos invalidos e limita o alcance; ele nao
@@ -81,8 +84,8 @@ Parametros iniciais do A010 ficam em:
 src/tof_stvl_test/config/ground_segmentation_a010.yaml
 ```
 
-Essa etapa ainda nao conecta a saida ao STVL. O topico
-`/ground_segmentation/obstacle_points_raw` sera a entrada do pos-processador.
+Essa etapa ainda nao inicia o STVL. O topico final pronto para ser usado como
+observation source e `/ground_segmentation/obstacle_points`.
 
 ## Usar em outro workspace ROS 2
 

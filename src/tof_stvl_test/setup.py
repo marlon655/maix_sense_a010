@@ -28,6 +28,8 @@ setup(
             'tof_stvl_test.pointcloud_preprocessor:main',
             'tof_cloud_preprocessor = '
             'tof_stvl_test.tof_cloud_preprocessor:main',
+            'tof_obstacle_postprocessor = '
+            'tof_stvl_test.tof_obstacle_postprocessor:main',
         ],
     },
 )

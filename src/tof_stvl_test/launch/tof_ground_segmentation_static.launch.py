@@ -13,6 +13,8 @@ def generate_launch_description():
         package_share, 'config', 'tof_ground_preprocessor.yaml')
     segmentation_params = os.path.join(
         package_share, 'config', 'ground_segmentation_a010.yaml')
+    postprocessor_params = os.path.join(
+        package_share, 'config', 'tof_obstacle_postprocessor.yaml')
     tof_package_share = get_package_share_directory('sipeed_tof_ms_a010')
     tof_params = os.path.join(
         tof_package_share, 'config', 'maixsense_params.yaml')
@@ -74,5 +76,12 @@ def generate_launch_description():
                     '/ground_segmentation/obstacle_points_raw',
                 ),
             ],
+        ),
+        Node(
+            package='tof_stvl_test',
+            executable='tof_obstacle_postprocessor',
+            name='tof_obstacle_postprocessor',
+            output='screen',
+            parameters=[postprocessor_params],
         ),
     ])
