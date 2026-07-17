@@ -2,6 +2,7 @@ import numpy as np
 
 import rclpy
 from rclpy.duration import Duration
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
@@ -124,8 +125,13 @@ def main(args=None):
     node = TofCloudPreprocessor()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # DDS can finish shutting down between the executor wake-up and
+        # take_message() when a launch receives SIGINT.
+        if rclpy.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

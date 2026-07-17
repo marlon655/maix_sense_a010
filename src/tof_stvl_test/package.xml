@@ -20,6 +20,7 @@
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>nav2_costmap_2d</exec_depend>
   <exec_depend>spatio_temporal_voxel_layer</exec_depend>
+  <exec_depend>ground_segmentation_ros2</exec_depend>
 
   <buildtool_depend>ament_python</buildtool_depend>
   <test_depend>ament_lint_auto</test_depend>

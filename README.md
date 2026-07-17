@@ -41,6 +41,49 @@ colcon build
 source install/setup.bash
 ```
 
+## Pipeline com ground segmentation
+
+A branch `tof_v0.1` inclui as dependencias `ground_segmentation` e
+`ground_segmentation_ros2` dentro de `src/`. O pipeline estatico de validacao e:
+
+```text
+/cloud [tof]
+  -> tof_cloud_preprocessor
+  -> /tof_preprocessed/ground_input [base_footprint]
+  -> ground_segmentation_ros2
+     -> /ground_segmentation/ground_points [base_footprint]
+     -> /ground_segmentation/raw_points [base_footprint]
+     -> /ground_segmentation/obstacle_points_raw [base_footprint]
+```
+
+O pre-processador remove apenas pontos invalidos e limita o alcance; ele nao
+aplica corte de altura, pois os pontos do piso precisam chegar ao segmentador.
+
+Para compilar o pipeline completo:
+
+```bash
+cd ~/tof_a10_ws
+source /opt/ros/jazzy/setup.bash
+colcon build
+source install/setup.bash
+```
+
+Para executar com a TF estatica usada nos testes (`base_footprint -> tof`):
+
+```bash
+ros2 launch tof_stvl_test tof_ground_segmentation_static.launch.py \
+  device:=/dev/tof
+```
+
+Parametros iniciais do A010 ficam em:
+
+```text
+src/tof_stvl_test/config/ground_segmentation_a010.yaml
+```
+
+Essa etapa ainda nao conecta a saida ao STVL. O topico
+`/ground_segmentation/obstacle_points_raw` sera a entrada do pos-processador.
+
 ## Usar em outro workspace ROS 2
 
 Para uso real em outro workspace, o pacote essencial e apenas:
