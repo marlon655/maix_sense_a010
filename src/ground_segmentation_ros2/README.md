@@ -126,23 +126,16 @@ source install/setup.bash
 
 ## Running the ROS 2 Node
 
-After building the package, launch the ground segmentation node using the provided ROS 2 launch file:
+In this workspace, launch the complete A010 pipeline from `tof_stvl_test`:
 
 ```bash
-ros2 launch ground_segmentation_ros2 ground_segmentation.launch.py \
-  pointcloud_topic:=<POINTCLOUD_TOPIC> \
-  imu_topic:=<IMU_TOPIC> \
-  use_sim_time:=<true/false>
+ros2 launch tof_stvl_test tof_ground_segmentation_static.launch.py
 ```
-
-Launch argument `imu_topic` is optional and is used only when parameter `use_imu_orientation` is `true`.
-
-Replace `<POINTCLOUD_TOPIC>` and `<IMU_TOPIC>` with the topics published by your LiDAR and IMU drivers.
-
 
 ## Node Configuration
 
-Parameters are loaded from [parameters.yaml](config/parameters.yaml)
+The A010-specific parameters are maintained in
+`tof_stvl_test/config/ground_segmentation_a010.yaml`.
 
 ## Benchmarking Mode
 
