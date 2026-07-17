@@ -19,7 +19,9 @@ setup(
     zip_safe=True,
     maintainer='ros_estudo',
     maintainer_email='ros_estudo@example.com',
-    description='Isolated STVL local costmap test with fake ToF obstacle cloud.',
+    description=(
+        'A010 ground segmentation, obstacle filtering, and STVL costmap '
+        'pipeline.'),
     license='MIT',
     entry_points={
         'console_scripts': [

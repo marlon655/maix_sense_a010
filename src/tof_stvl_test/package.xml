@@ -2,7 +2,7 @@
 <package format="3">
   <name>tof_stvl_test</name>
   <version>0.0.1</version>
-  <description>Isolated STVL local costmap test with fake ToF obstacle cloud.</description>
+  <description>A010 ground segmentation, obstacle filtering, and STVL costmap pipeline.</description>
   <maintainer email="ros_estudo@example.com">ros_estudo</maintainer>
   <license>MIT</license>
 
@@ -19,6 +19,7 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>nav2_costmap_2d</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>spatio_temporal_voxel_layer</exec_depend>
   <exec_depend>ground_segmentation_ros2</exec_depend>
 

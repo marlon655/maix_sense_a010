@@ -15,6 +15,8 @@ def generate_launch_description():
         package_share, 'config', 'ground_segmentation_a010.yaml')
     postprocessor_params = os.path.join(
         package_share, 'config', 'tof_obstacle_postprocessor.yaml')
+    costmap_params = os.path.join(
+        package_share, 'config', 'stvl_local_costmap_a010.yaml')
     tof_package_share = get_package_share_directory('sipeed_tof_ms_a010')
     tof_params = os.path.join(
         tof_package_share, 'config', 'maixsense_params.yaml')
@@ -83,5 +85,25 @@ def generate_launch_description():
             name='tof_obstacle_postprocessor',
             output='screen',
             parameters=[postprocessor_params],
+        ),
+        Node(
+            package='nav2_costmap_2d',
+            executable='nav2_costmap_2d',
+            namespace='local_costmap',
+            name='local_costmap',
+            output='screen',
+            parameters=[costmap_params],
+        ),
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_tof_costmap',
+            output='screen',
+            parameters=[{
+                'use_sim_time': False,
+                'autostart': True,
+                'bond_timeout': 0.0,
+                'node_names': ['/local_costmap/local_costmap'],
+            }],
         ),
     ])
