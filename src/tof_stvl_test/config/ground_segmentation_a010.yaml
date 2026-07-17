@@ -29,7 +29,7 @@ ground_segmentation:
     cellSizeZ: 1.00
     cellSizeZPhase2: 0.10
     slopeThresholdDegrees: 20.0
-    groundInlierThreshold: 0.03
+    groundInlierThreshold: 0.02
     centroidSearchRadius: 1.00
     maxGroundHeightDeviation: 0.08
 
