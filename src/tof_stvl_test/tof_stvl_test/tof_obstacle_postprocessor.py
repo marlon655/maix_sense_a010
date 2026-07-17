@@ -16,6 +16,7 @@ from visualization_msgs.msg import Marker
 
 from tof_stvl_test.pointcloud_preprocessor import (
     filter_height,
+    forward_distance_filter_mask,
     lateral_filter_mask,
     make_bounds_line_points,
     radius_outlier_mask,
@@ -62,6 +63,8 @@ class TofObstaclePostprocessor(Node):
         self.output_pub = self.create_publisher(PointCloud2, output_topic, 10)
         self.input_pub = self.create_publisher(
             PointCloud2, '/tof_filters/obstacles_input', 10)
+        self.distance_pub = self.create_publisher(
+            PointCloud2, '/tof_filters/distance', 10)
         self.height_pub = self.create_publisher(
             PointCloud2, '/tof_filters/height', 10)
         self.lateral_pub = self.create_publisher(
@@ -87,6 +90,8 @@ class TofObstaclePostprocessor(Node):
             f'Postprocessing {input_topic} -> {output_topic}')
 
     def _validate_configuration(self):
+        if float(self.get_parameter('distance_max').value) <= 0.0:
+            raise ValueError('distance_max must be greater than zero')
         height_min = float(self.get_parameter('height_min').value)
         height_max = float(self.get_parameter('height_max').value)
         if height_min >= height_max:
@@ -200,8 +205,31 @@ class TofObstaclePostprocessor(Node):
                 return
             transformed = transform_points(points, transform)
 
-        height_points = filter_height(
+        sensor_frame = self.get_parameter('output_frame').value
+        if sensor_frame == target_frame:
+            sensor_origin_x = 0.0
+        else:
+            try:
+                sensor_transform = self.lookup_transform(
+                    target_frame, sensor_frame, msg.header.stamp)
+            except TransformException as error:
+                self.get_logger().warning(
+                    f'Cannot locate {sensor_frame} in {target_frame}: '
+                    f'{error}',
+                    throttle_duration_sec=2.0,
+                )
+                return
+            sensor_origin_x = sensor_transform.transform.translation.x
+
+        distance_mask = forward_distance_filter_mask(
             transformed,
+            sensor_origin_x,
+            float(self.get_parameter('distance_max').value),
+        )
+        distance_points = transformed[distance_mask]
+
+        height_points = filter_height(
+            distance_points,
             float(self.get_parameter('height_min').value),
             float(self.get_parameter('height_max').value),
         )
@@ -235,6 +263,8 @@ class TofObstaclePostprocessor(Node):
         if bool(self.get_parameter('publish_intermediate_clouds').value):
             self.input_pub.publish(self.make_cloud(
                 transformed, msg.header.stamp, target_frame))
+            self.distance_pub.publish(self.make_cloud(
+                distance_points, msg.header.stamp, target_frame))
             self.height_pub.publish(self.make_cloud(
                 height_points, msg.header.stamp, target_frame))
             self.lateral_pub.publish(self.make_cloud(

@@ -43,6 +43,15 @@ def filter_lateral(points, minimum, maximum):
     return points[lateral_filter_mask(points, minimum, maximum)]
 
 
+def forward_distance_filter_mask(points, origin_x, distance_max):
+    if not np.isfinite(origin_x):
+        raise ValueError('origin_x must be finite')
+    if not np.isfinite(distance_max) or distance_max <= 0.0:
+        raise ValueError('distance_max must be finite and greater than zero')
+    forward_distance = points[:, 0] - origin_x
+    return (forward_distance >= 0.0) & (forward_distance <= distance_max)
+
+
 def radius_outlier_mask(points, radius, min_neighbors):
     if len(points) == 0:
         return np.zeros(0, dtype=bool)
