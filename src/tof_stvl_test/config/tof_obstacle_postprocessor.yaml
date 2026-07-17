@@ -9,7 +9,7 @@ tof_obstacle_postprocessor:
     # Limites aplicados somente aos pontos classificados como obstaculo.
     # Os limites laterais sao coordenadas assinadas no eixo Y.
     distance_max: 1.0
-    height_min: 0.01
+    height_min: 0.04
     height_max: 1.0
     lateral_min: -0.20
     lateral_max: 0.20
