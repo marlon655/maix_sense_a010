@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="palmares_bot">
+    <!-- Robot description for Palmares Bot (differential drive with STL mesh) -->
+    <xacro:arg name="tof_lidar" default="true"/>
+    <xacro:arg name="camera" default="true"/>
+
+    <!-- Include common macros (inertia helpers + materials) -->
+    <xacro:include filename="common.xacro"/>
+
+    <!-- Include Palmares lidar (parents to 'chassis' link defined below) -->
+    <xacro:include filename="palmares_lidar.xacro"/>
+    <xacro:if value="$(arg tof_lidar)">
+        <xacro:include filename="palmares_tof_lidar.xacro"/>
+    </xacro:if>
+    <xacro:if value="$(arg camera)">
+        <xacro:include filename="camera.xacro"/>
+    </xacro:if>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         ROBOT DIMENSIONS  (STL in mm → scaled to metres at 0.001)
+         Bounding box: 533 × 460 × 428 mm
+         Centre of mass: cx=-0.0145  cy=0.050  cz=0.214
+         Total mass: 35 kg
+         Wheel: radius=100 mm  width=50 mm  separation=305 mm centre-to-centre
+         Lidar: Ø36 × H36 mm  at X=0.194 m  Y=0.050 m  Z=0.275 m
+    ══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ═══ base_footprint (ground-level navigation frame) ════════════════ -->
+    <link name="base_footprint"/>
+
+    <!-- ═══ base_link (physical body frame) ═══════════════════════════════ -->
+    <link name="base_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="file://$(find sim_bot)/meshes/palmares.stl"
+                      scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="white"/>
+        </visual>
+        <collision>
+            <!-- Lower half of the body: Z 0 → 0.200 m -->
+            <origin xyz="-0.0145 0.050 0.100" rpy="0 0 0"/>
+            <geometry>
+                <box size="0.533 0.460 0.200"/>
+            </geometry>
+        </collision>
+        <xacro:inertial_box mass="35.0" x="0.533" y="0.460" z="0.428">
+            <origin xyz="-0.0145 0.050 0.214" rpy="0 0 0"/>
+        </xacro:inertial_box>
+    </link>
+
+    <!-- Fixed body pose relative to the planar navigation frame. -->
+    <joint name="base_footprint_joint" type="fixed">
+        <parent link="base_footprint"/>
+        <child link="base_link"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- ═══ Wheels ════════════════════════════════════════════════════════
+         Wheel centre sits at Z=0.100 m (= wheel radius, exactly at ground).
+         Joint frame is rotated ±90° about X so the cylinder spins about Y.
+         Left  Y= +0.2025 m   Right Y= -0.1025 m  →  separation = 0.305 m
+    ══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Left Wheel -->
+    <joint name="left_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="left_wheel"/>
+        <origin xyz="0.100 0.2025 0.100" rpy="-${pi/2} 0 0"/>
+        <axis xyz="0 0 1"/>
+    </joint>
+    <link name="left_wheel">
+        <visual>
+            <geometry>
+                <cylinder radius="0.100" length="0.050"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="0.100"/>
+            </geometry>
+        </collision>
+        <xacro:inertial_cylinder mass="2.0" length="0.050" radius="0.100">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_cylinder>
+    </link>
+
+    <!-- Right Wheel -->
+    <joint name="right_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="right_wheel"/>
+        <origin xyz="0.100 -0.1025 0.100" rpy="${pi/2} 0 0"/>
+        <axis xyz="0 0 -1"/>
+    </joint>
+    <link name="right_wheel">
+        <visual>
+            <geometry>
+                <cylinder radius="0.100" length="0.050"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="0.100"/>
+            </geometry>
+        </collision>
+        <xacro:inertial_cylinder mass="2.0" length="0.050" radius="0.100">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_cylinder>
+    </link>
+
+    <!-- ═══ Chassis mount (virtual link – lidar.xacro parents to 'chassis') ═
+         Placed so that lidar.xacro's default xyz="0 0 0.1" offset lands at
+         the correct absolute lidar position: X=0.194 Y=0.050 Z=0.275 m
+         (0.175 + 0.1 = 0.275).  No visual or collision; the STL covers the body.
+    ══════════════════════════════════════════════════════════════════════ -->
+    <joint name="chassis_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="chassis"/>
+        <origin xyz="0.194 0.050 0.175" rpy="0 0 0"/>
+    </joint>
+    <link name="chassis"/>
+
+    <!-- ═══ Gazebo contact / friction ════════════════════════════════════
+         Low friction on body lets the robot pivot freely.
+         High friction on wheels provides differential-drive traction.
+    ══════════════════════════════════════════════════════════════════════ -->
+    <gazebo reference="base_link">
+        <mu1>0.01</mu1>
+        <mu2>0.01</mu2>
+    </gazebo>
+
+    <gazebo reference="left_wheel">
+        <material>Gazebo/Black</material>
+        <mu1>2.0</mu1>
+        <mu2>2.0</mu2>
+        <kp>1e6</kp>
+        <kd>1.0</kd>
+    </gazebo>
+
+    <gazebo reference="right_wheel">
+        <material>Gazebo/Black</material>
+        <mu1>2.0</mu1>
+        <mu2>2.0</mu2>
+        <kp>1e6</kp>
+        <kd>1.0</kd>
+    </gazebo>
+
+    <!-- ═══ Gazebo plugins ════════════════════════════════════════════════ -->
+    <gazebo>
+        <!-- Differential Drive: publishes odom + TF odom→base_footprint -->
+        <plugin filename="gz-sim-diff-drive-system"
+                name="gz::sim::systems::DiffDrive">
+            <left_joint>left_wheel_joint</left_joint>
+            <right_joint>right_wheel_joint</right_joint>
+            <wheel_separation>0.305</wheel_separation>
+            <wheel_radius>0.100</wheel_radius>
+            <max_linear_acceleration>6.0</max_linear_acceleration>
+            <frame_id>odom</frame_id>
+            <child_frame_id>base_footprint</child_frame_id>
+            <tf_topic>/tf</tf_topic>
+            <topic>cmd_vel</topic>
+            <odom_topic>odom</odom_topic>
+            <odom_publish_frequency>30</odom_publish_frequency>
+        </plugin>
+
+        <!-- Joint State Publisher: publishes wheel positions to /joint_states -->
+        <plugin filename="gz-sim-joint-state-publisher-system"
+                name="gz::sim::systems::JointStatePublisher">
+            <topic>joint_states</topic>
+            <joint_name>left_wheel_joint</joint_name>
+            <joint_name>right_wheel_joint</joint_name>
+        </plugin>
+    </gazebo>
+
+</robot>

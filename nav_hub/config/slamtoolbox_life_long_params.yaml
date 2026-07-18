@@ -1,0 +1,94 @@
+slam_toolbox:
+  ros__parameters:
+
+    # Plugin params
+    #Configurações do Solver (Otimização), usado para otimização do pose-graph
+    solver_plugin: solver_plugins::CeresSolver      #The type of nonlinear solver to utilize for karto's scan solver.
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY   # Algoritmo de resolução de sistemas lineares (SPARSE_NORMAL_CHOLESKY é eficiente para matrizes esparsas).
+    ceres_preconditioner: SCHUR_JACOBI          # O pré-condicionador a ser usado com esse solucionador.
+    ceres_trust_strategy: LEVENBERG_MARQUARDT   # Estratégia de atualização de parâmetros (LEVENBERG_MARQUARDT para convergência estável).
+    ceres_dogleg_type: TRADITIONAL_DOGLEG       # A estratégia dogleg a ser usada se a estratégia de confiança for DOGLEG.
+    ceres_loss_function: HuberLoss   # Função de robustez para lidar com outliers (ex: HuberLoss para odometria ruidosa).
+
+    # ROS Parameters
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    mode: mapping     # Define o modo de operação (mapeamento ou localização pura).
+
+    # lifelong params
+    # Parâmetros específicos para mapeamento contínuo em ambientes dinâmicos:
+    lifelong_search_use_tree: false
+    lifelong_minimum_score: 0.1       # Pontuação mínima para aceitar uma correspondência como válida.
+    lifelong_iou_match: 0.85          # Limiar de sobreposição (Intersection-over-Union) para detectar regiões revisitadas.
+    lifelong_node_removal_score: 0.04 # Pontuação abaixo da qual nós antigos são removidos (para evitar sobrecarga).
+    lifelong_overlap_score_scale: 0.06
+    lifelong_constraint_multiplier: 0.08  # Peso das restrições temporárias no grafo.
+    lifelong_nearby_penalty: 0.001
+    lifelong_candidates_scale: 0.03
+
+    # if you'd like to immediately start continuing a map at a given pose
+    # or at the dock, but they are mutually exclusive, if pose is given
+    # will use pose
+    map_file_name: test_steve          # Name of the pose-graph file to load on startup if available
+    #map_start_pose: [0.0, 0.0, 0.0]    # Pose to start pose-graph mapping/localization in, if available
+    #map_start_at_dock: true            # Starting pose-graph loading at the dock (first node), if available. If both pose and dock are set, it will use pose
+
+    debug_logging: false      #Se ativo, imprime logs de debug detalhados.
+    enable_interactive_mode: true  # Se o modo interativo deve ou não ser habilitado. O modo interativo manterá um cache de varreduras a laser mapeadas para seus IDs para visualização no modo interativo. Como resultado, a memória para o processo aumentará. Isso é desabilitado manualmente nos modos de localização e de vida útil, pois aumentariam a utilização da memória ao longo do tempo. Válido para os modos de mapeamento ou mapeamento contínuo.
+    # Para habilitar ou desabilitar o modo interativo pelo terminal: rosservice call /slam_toolbox/toggle_interactive_mode
+
+    #Desempenho e Tempo Real.
+    #Configurações para otimizar recursos computacionais
+    throttle_scans: 1    # 1 em cada 1 scans seja processado, ou seja, nenhum será ignorado.  Quando throttle_scans: N>1 → processa somente 1 a cada N scans
+    transform_publish_period: 0.02 #if 0 never publishes odometry. #recalcula a transformação cumulativa  base_footprint → odom e publica a cada T segundos.
+    map_update_interval: 5.0       # Após otimizar o grafo, só atualiza a OccupancyGrid e re‐publica o mapa global a cada T segundos. (Intervalo para atualizar o mapa visualmente no RViz.)
+    resolution: 0.05                # Resolução do mapa em metros por pixel (5 cm).
+    max_laser_range: 20.0           # 12.0  3.0   for rastering images
+    minimum_time_interval: 0.5      # Tempo mínimo entre duas atualizações de pose no grafo
+    transform_timeout: 0.2          # Tempo máximo que o listener TF aguarda um transform antes de falhar e descartar o scan.
+    tf_buffer_duration: 5          # Duração (em segundos) que o buffer interno de TF armazena transformações históricas (para lookupTransform).  Defina como alta se estiver executando offline em velocidades múltiplas no modo síncrono.
+    stack_size_to_use: 80000000     # (80 MB) O número de bytes para redefinir o tamanho da pilha. para permitir serialização de grandes mapas sem estouro de stack.
+
+    # General Parameters
+    # Correspondência de Varreduras (Scan Matching)
+    use_scan_matching: true       # Ativa a fase de scan‐matching (correlação) entre nova leitura e o mapa/scan buffer para estimar deslocamento incremental.
+    link_scan_maximum_distance: 1.5        # Só tenta conectar (“link”) scans distantes menos que D metros — filtra candidatos ruins.
+    distance_variance_penalty: 0.5     # Penaliza soluções de scan‐matching que exigem grandes translações: adiciona (Δx²×penalty) ao custo total durante refinamento local. 
+    angle_variance_penalty: 1.0    # Mesmo que o distance_variance_penalty, mas para grandes rotações (Δθ²×penalty). 
+    use_scan_barycenter: true     # Usa o centro de massa dos pontos do scan para dar uma aproximação inicial ao matching (acelera convergência).
+    minimum_travel_distance: 0.5  # Só adiciona uma nova pose no grafo se o robô tiver se deslocado pelo menos D metros desde a última pose “aceita.”
+    minimum_travel_heading: 0.5   # Só adiciona nova pose se tiver girado mais que A radianos.
+    scan_buffer_size: 100          # 10  Quantos scans armazenar para matching multihierárquico: cada novo scan é comparado com até N scans anteriores. também usado como o número de varreduras no buffer circular do modo de localização
+    scan_buffer_maximum_scan_distance: 10   # 10    define a distância máxima em metros que uma varredura pode estar da pose (nó) mais recente do robô para permanecer no buffer.
+
+    # Loop closures
+    #Parâmetros para identificar quando o robô revisita áreas
+    link_match_minimum_response_fine: 0.1  # Confiança mínima no matching fino (pontual) para criar uma aresta direta no grafo entre poses não‐consecutivas.
+    loop_search_maximum_distance: 5     #  3.0      um candidato a fechamento de loop só sera aceito se estiver dentro desse raio (em metros).
+    do_loop_closing: true                    # Se false, pula toda a fase de loop‐closing (o grafo fica apenas com arestas de odometria e scan‐matching consecutivo).
+    loop_match_minimum_chain_size: 10           # define o número mínimo de varreduras (nós) consecutivas que devem ser correlacionadas para considerar uma correspondência como um fechamento de loop válido 
+    loop_match_maximum_variance_coarse: 1.5       # 3.0 0.005 Durante busca grosseira, variação máxima tolerada no scan matching para considerar candidato a loop (é um nível de tolerância ao erro).
+    loop_match_minimum_response_coarse: 0.5      # 0.35   Confiança mínima no matching grosseiro para iniciar refinamento fino de loop.
+    loop_match_minimum_response_fine: 0.6      #  0.45   Confiança mínima no matching fino para realmente incluir a aresta de loop no grafo.
+
+    # Correlation Parameters -  Loop Search Parameters
+    correlation_search_space_dimension: 1.0     # 0.5  Largura total (em metros) ao redor da pose prevista onde o matching por correlação irá buscar o melhor alinhamento.
+    correlation_search_space_resolution: 0.01   # Passo (0.01 m) na grade de deslocamento para a correlação bruta.
+    correlation_search_space_smear_deviation: 0.1 # Desvio‐padrão de uma Gaussiana usada para “borrifar” as respostas de correlação, suavizando picos pontuais e ajudando convergência da busca.
+
+    # Correlation Parameters - Loop Closure Parameters
+    loop_search_space_dimension: 5.0    # 8.0  Tamanho da grade de busca sobre o algoritmo de fechamento de loop. Define a extensão espacial máxima para a busca de candidatos.
+    loop_search_space_resolution: 0.05  # Resolução de grade usada pelo loop_search_space_dimension, criando uma célula a cada loop_search_space_resolution.  Cada célula representa uma posição candidata onde a varredura atual pode ser comparada com varreduras anteriores para avaliar a possibilidade de um fechamento de loop.
+    loop_search_space_smear_deviation: 0.03 # 	Nível de desfoque da detecção de fechamento de loop. Adiciona tolerância a pequenas variações.
+
+
+    coarse_search_angle_offset: 0.349  # 1.5708     # 0.349  Define o intervalo angular máximo na busca grosseira (coarse search), que identifica correspondências iniciais.  antes do refinamento fino.
+    coarse_angle_resolution: 0.0349  # 0.0349       # Passo angular (~1°) na busca grosseira.
+    fine_search_angle_offset: 0.00349     # 0.00349   Define o intervalo angular máximo usado na busca refinada (fine search) após achar uma correspondência inicial.
+    minimum_angle_penalty: 0.9            # (Default: 0.9)  semelhante ao acima, penaliza rotações grandes. Um valor 0.9 multiplica o ângulo girado antes de subtrair do score.
+    minimum_distance_penalty: 0.5         # (Default: 0.5) quanto maior a distância que o scan precisou “andar” para alinhar, maior o valor penalizado no score. Um valor 0.5 multiplica a distância obtida por 0.5 antes de subtrair do score.
+    use_response_expansion: true      # (Default: true ) após computar o mapa de fitness (correlação), aplica uma dilatação morfológica leve, permitindo que múltiplas poses vizinhas herdem bons scores. Aumenta robustez a ruídos e deformações no mapa.
+
+

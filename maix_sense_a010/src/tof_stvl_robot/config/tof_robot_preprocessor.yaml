@@ -1,0 +1,45 @@
+tof_pointcloud_preprocessor:
+  ros__parameters:
+    # PointCloud2 bruta publicada pelo driver e nuvem final para o Nav2 oficial.
+    input_topic: /cloud
+    output_topic: /tof/obstacle_points
+
+    # TFs externas obrigatorias: base_footprint <- tof e odom <- base_footprint.
+    target_frame: base_footprint
+    output_frame: tof
+    transform_timeout: 0.10
+
+    # Distancia euclidiana, em metros, medida a partir da lente do A010.
+    distance_min: 0.20
+    distance_max: 2.0
+
+    # Faixa vertical aceita no eixo Z de base_footprint, em metros.
+    height_min: 0.04
+    height_max: 1.20
+
+    # Faixa lateral aceita no eixo Y de base_footprint, em metros.
+    lateral_min: -1.10
+    lateral_max: 1.10
+
+    # Remove pontos sem ao menos 3 vizinhos em um raio de 5 cm.
+    radius_search: 0.05
+    min_neighbors: 3
+
+    # Persistencia temporal comparada em odom no timestamp original da nuvem.
+    temporal_required_frames: 2
+    temporal_match_radius: 0.05
+    temporal_reference_frame: odom
+    temporal_max_frame_gap: 0.50
+    temporal_clear_history_on_tf_failure: true
+
+    # Saltos acima destes limites limpam o historico temporal.
+    # Unidades: metros e radianos.
+    temporal_max_translation_jump: 1.0
+    temporal_max_rotation_jump: 1.5708
+
+    # Perfil de producao: debug desligado para evitar calculo e serializacao.
+    # Reinicie o no depois de alterar qualquer uma destas flags.
+    publish_intermediate_clouds: false
+    publish_filter_bounds: false
+    publish_projected_wall: false
+    projected_wall_epsilon: 0.001

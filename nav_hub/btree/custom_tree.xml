@@ -1,0 +1,81 @@
+<!--
+  Este comentário descreve a intenção principal da árvore:
+  "This Behavior Tree replans the global path only when the goal is updated."
+  (Esta Árvore de Comportamento replaneja o caminho global apenas quando o objetivo é atualizado.)
+-->
+
+<!-- O elemento raiz. 
+     'BTCPP_format="4"' especifica a versão da sintaxe da biblioteca BehaviorTree.CPP.
+     'main_tree_to_execute="MainTree"' diz ao `bt_navigator` qual sub-árvore dentro deste arquivo ele deve começar a executar.
+-->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+
+  <!-- Define a árvore principal com o ID "MainTree". -->
+  <BehaviorTree ID="MainTree">
+
+    <!-- 
+      Nó de Controle: PipelineSequence
+      Funcionalidade: Executa seus filhos em sequência. O primeiro filho (ControllerSelector) começa a ser executado.
+      Enquanto um filho está 'RUNNING', os filhos anteriores são pausados (ticked com status 'IDLE').
+      Se um filho retorna 'SUCCESS', ele passa para o próximo.
+      Se um filho retorna 'FAILURE', toda a sequência falha.
+      É ideal para tarefas lineares como "faça A, depois faça B, depois faça C".
+    -->
+    <PipelineSequence name="NavigateWithReplanning">
+
+      <!-- 
+        Nó de Ação: ControllerSelector
+        Funcionalidade: Permite a seleção dinâmica do plugin de controlador local a ser usado.
+        - 'selected_controller="{selected_controller}"': Esta é uma porta de saída. O nó escuta o tópico 'controller_selector' e, se uma nova seleção for publicada, ele a armazena na variável '{selected_controller}' do "blackboard" da árvore.
+        - 'default_controller="FollowPath"': Se nenhum controlador for selecionado externamente, ele usará "FollowPath" como padrão. Este nome DEVE corresponder a um dos plugins definidos no arquivo de parâmetros do `controller_server`.
+        - 'topic_name="controller_selector"': O nome do tópico que este nó escuta para mudanças de controlador.
+        Resultado: Este nó retorna 'SUCCESS' imediatamente e garante que a variável '{selected_controller}' esteja preenchida para uso posterior.
+      -->
+      <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="controller_selector"/>
+
+      <!-- 
+        Nó de Ação: PlannerSelector
+        Funcionalidade: Análogo ao ControllerSelector, mas para o planejador global.
+        - 'selected_planner="{selected_planner}"': Armazena o ID do planejador selecionado no blackboard.
+        - 'default_planner="GridBased"': Usa "GridBased" como padrão, que deve corresponder a um plugin no `planner_server`.
+        - 'topic_name="planner_selector"': Tópico para seleção dinâmica do planejador.
+        Resultado: Retorna 'SUCCESS' imediatamente e preenche a variável '{selected_planner}'.
+      -->
+      <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
+
+      <!-- 
+        Nó de Controle: GoalUpdatedController
+        Funcionalidade: Este é o "coração" desta árvore customizada. É um nó de controle que só executa seu filho UMA VEZ quando o objetivo ('goal') é atualizado.
+        - Ele verifica se o objetivo no blackboard mudou.
+        - Se mudou, ele executa seu filho (ComputePathToPose).
+        - Se o filho retornar 'SUCCESS', o GoalUpdatedController também retorna 'SUCCESS'.
+        - Se o objetivo NÃO mudou (nas execuções subsequentes da árvore), ele retorna 'SUCCESS' imediatamente, sem executar seu filho.
+        Resultado: Isso impede o replanejamento contínuo. O caminho só é calculado no início da navegação.
+      -->
+      <GoalUpdatedController>
+
+        <!-- 
+          Nó de Ação: ComputePathToPose
+          Funcionalidade: Chama o servidor de planejamento (`planner_server`) para calcular um caminho.
+          - 'goal="{goal}"': Porta de entrada. Lê a pose do objetivo final a partir da variável '{goal}' do blackboard (que é preenchida pelo `bt_navigator` quando ele recebe a ação).
+          - 'path="{path}"': Porta de saída. Se o planejamento for bem-sucedido, o caminho resultante é armazenado na variável '{path}' do blackboard.
+          - 'planner_id="{selected_planner}"': Porta de entrada. Usa o ID do planejador que foi definido pelo `PlannerSelector` para dizer ao `planner_server` qual algoritmo usar.
+          - 'error_code_id="{compute_path_error_code}"': Porta de saída. Armazena um código de erro se o planejamento falhar.
+          Resultado: Retorna 'RUNNING' enquanto planeja, 'SUCCESS' se encontrar um caminho, e 'FAILURE' se não encontrar.
+        -->
+        <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+      </GoalUpdatedController>
+
+      <!-- 
+        Nó de Ação: FollowPath
+        Funcionalidade: Chama o servidor de controle (`controller_server`) para fazer o robô seguir o caminho.
+        - 'path="{path}"': Porta de entrada. Usa o caminho que foi gerado pelo `ComputePathToPose` e armazenado no blackboard.
+        - 'controller_id="{selected_controller}"': Porta de entrada. Usa o ID do controlador definido pelo `ControllerSelector`.
+        - 'error_code_id="{follow_path_error_code}"': Porta de saída. Armazena um código de erro se o seguimento do caminho falhar.
+        Resultado: Retorna 'RUNNING' enquanto o robô está se movendo, 'SUCCESS' quando o robô chega ao destino (verificado pelo `goal_checker`), e 'FAILURE' se o robô ficar preso (verificado pelo `progress_checker`) ou se o controlador falhar por outro motivo.
+      -->
+      <FollowPath path="{path}"  controller_id="{selected_controller}" error_code_id="{follow_path_error_code}"/>
+
+    </PipelineSequence>
+  </BehaviorTree>
+</root>

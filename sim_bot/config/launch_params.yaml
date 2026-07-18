@@ -1,0 +1,25 @@
+# Operation profile loaded by launch/sim_manager.launch.py.
+# Paths may be absolute or relative to the sim_bot package share directory.
+
+# Mode
+mode: simulation
+
+# Simulation essentials
+world: worlds/aceleradora.world
+robot_name: palmares_bot
+robot_urdf: description/palmares_bot.urdf.xacro
+spawn_x: -0.2621192932128906
+spawn_y: 12.350018501281738
+spawn_z: 0.15
+bridge_config: config/gz_bridge.yaml
+rviz_config: rviz/bot.rviz
+rviz: true
+joy: false
+tof_lidar: true
+camera: true
+
+# Navigation
+slam: false
+nav: true
+route: true
+speed_filter: true

@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <!-- Narrow 3D point cloud sensor used to exercise Nav2 STVL in simulation. -->
+    <joint name="tof_lidar_joint" type="fixed">
+        <parent link="chassis"/>
+        <child link="tof_lidar_frame"/>
+        <origin xyz="0.065 0 0.18" rpy="0 0 0"/>
+    </joint>
+
+    <link name="tof_lidar_frame">
+        <visual>
+            <geometry>
+                <box size="0.030 0.030 0.030"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.030 0.030 0.030"/>
+            </geometry>
+        </collision>
+        <xacro:inertial_box mass="0.05" x="0.030" y="0.030" z="0.030">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_box>
+    </link>
+
+    <gazebo reference="tof_lidar_frame">
+        <material>Gazebo/Black</material>
+
+        <sensor name="tof_lidar" type="gpu_lidar">
+            <pose>0 0 0 0 0 0</pose>
+            <always_on>true</always_on>
+            <visualize>true</visualize>
+            <update_rate>10</update_rate>
+            <topic>cloud</topic>
+            <gz_frame_id>tof_lidar_frame</gz_frame_id>
+            <lidar>
+                <scan>
+                    <horizontal>
+                        <samples>100</samples>
+                        <min_angle>-0.610865</min_angle>
+                        <max_angle>0.610865</max_angle>
+                    </horizontal>
+                    <vertical>
+                        <samples>100</samples>
+                        <min_angle>-0.523599</min_angle>
+                        <max_angle>0.523599</max_angle>
+                    </vertical>
+                </scan>
+                <range>
+                    <min>0.30</min>
+                    <max>2.50</max>
+                </range>
+            </lidar>
+        </sensor>
+    </gazebo>
+</robot>

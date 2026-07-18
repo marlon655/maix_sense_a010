@@ -1,0 +1,13 @@
+# Perfil padrao usado por launch/essentials.launch.py.
+#
+# No robo real, mantenha mode: hardware para preservar o fluxo Oregon:
+# robot06_description + ldlidar + canopen + nav_graph.
+#
+# Na simulacao, o sim_bot sobrescreve estes argumentos e chama:
+# mode:=simulation, use_sim_time:=true e params_file:=config/sim_nav_params.yaml.
+
+mode: hardware
+use_sim_time: false
+params_file: config/nav_routegraph.yaml
+route: true
+speed_filter: true

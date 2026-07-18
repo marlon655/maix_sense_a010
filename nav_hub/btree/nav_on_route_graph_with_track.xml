@@ -1,0 +1,90 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+
+    <Sequence name="NavigateWithRoutes">
+
+      <ControllerSelector selected_controller="{selected_controller}"
+        default_controller="FollowPath"
+        topic_name="controller_selector" />
+
+      <PlannerSelector selected_planner="{selected_planner}"
+        default_planner="GridBased"
+        topic_name="planner_selector" />
+
+      <RecoveryNode name="RouteTrackingRecovery" number_of_retries="9999">
+        <Sequence name="FirstTrackLast">
+          <Sequence name="FirstMilePhase">
+            <ComputeRoute goal="{goal}"
+              path="{route_preview_path}"
+              route="{route_preview}"
+              use_poses="true"
+              error_code_id="{compute_route_error_code}" />
+
+            <Fallback name="FirstMileCheck">
+              <Sequence>
+                <GetCurrentPose current_pose="{current_pose}" />
+                <GetPoseFromPath path="{route_preview_path}" index="0" pose="{route_start_pose}" />
+                <ArePosesNear ref_pose="{current_pose}"
+                  target_pose="{route_start_pose}"
+                  tolerance="0.3" />
+              </Sequence>
+
+              <Sequence>
+                <ComputePathToPose goal="{route_start_pose}"
+                  path="{first_mile_path}"
+                  planner_id="{selected_planner}"
+                  error_code_id="{compute_path_error_code}" />
+
+                <FollowPath path="{first_mile_path}"
+                  controller_id="{selected_controller}"
+                  error_code_id="{follow_path_error_code}" />
+              </Sequence>
+            </Fallback>
+          </Sequence>
+
+          <Parallel name="ComputeTrackAndFollowRoute" success_count="-1" failure_count="1">
+            <ComputeAndTrackRoute goal="{goal}"
+              path="{path}"
+              route="{route}"
+              use_poses="true"
+              execution_duration="{route_execution_duration}"
+              last_node_id="{last_node_id}"
+              next_node_id="{next_node_id}"
+              current_edge_id="{current_edge_id}"
+              rerouted="{route_rerouted}"
+              error_code_id="{compute_route_error_code}" />
+
+            <FollowPath path="{path}"
+              controller_id="{selected_controller}"
+              error_code_id="{follow_path_error_code}" />
+          </Parallel>
+
+          <Fallback name="LastMileCheck">
+            <Sequence>
+              <GetPoseFromPath path="{route_preview_path}" index="-1" pose="{route_end_pose}" />
+              <ArePosesNear ref_pose="{goal}"
+                target_pose="{route_end_pose}"
+                tolerance="0.1" />
+            </Sequence>
+
+            <Sequence>
+              <ComputePathToPose goal="{goal}"
+                path="{last_mile_path}"
+                planner_id="{selected_planner}"
+                error_code_id="{compute_path_error_code}" />
+
+              <FollowPath path="{last_mile_path}"
+                controller_id="{selected_controller}"
+                error_code_id="{follow_path_error_code}" />
+            </Sequence>
+          </Fallback>
+        </Sequence>
+
+        <Sequence name="ClearCostmapsRecovery">
+          <ClearEntireCostmap name="ClearLocalCostmap-Recovery" service_name="local_costmap/clear_entirely_local_costmap"/>
+          <ClearEntireCostmap name="ClearGlobalCostmap-Recovery" service_name="global_costmap/clear_entirely_global_costmap"/>
+        </Sequence>
+      </RecoveryNode>
+    </Sequence>
+  </BehaviorTree>
+</root>

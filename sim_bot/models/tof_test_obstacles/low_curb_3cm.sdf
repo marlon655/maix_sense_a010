@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="tof_low_curb_3cm">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.50 0.08 0.03</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>0.50 0.08 0.03</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.05 0.20 1.00 1</ambient>
+          <diffuse>0.05 0.20 1.00 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

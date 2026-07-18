@@ -1,0 +1,1016 @@
+bt_navigator:
+  # Função: O orquestrador principal da navegação. 
+  # Ele usa Árvores de Comportamento (Behavior Trees - BT) para chamar outros servidores (planner, controller, etc.) 
+  # e executar uma tarefa de navegação complexa, como "ir para um ponto".
+  ros__parameters:
+    # --- Frames e Tópicos Fundamentais ---
+    global_frame: map                  # [string, default: "map"] Frame de referência global para toda a navegação.
+    robot_base_frame: base_footprint   # [string, default: "base_link"] Frame de referência do robô, usado para obter sua posição.
+    odom_topic: /odom                  # [string, default: "odom"] Tópico da odometria, usado por alguns comportamentos.
+    use_sim_time: false                # [bool, default: false] Usar o tempo de simulação (ex: do Gazebo) em vez do tempo real.
+
+    # --- Configurações de Comportamento e Timeout ---
+    bt_loop_duration: 10                 # [int, default: 10] Frequência em Hz com que a árvore de comportamento é "executada" (tick).
+    default_server_timeout: 20           # [int, default: 20] Timeout em milissegundos para esperar por servidores de ação (planner, controller).
+    wait_for_service_timeout: 2000       # [int, default: 1000] Timeout em milissegundos para esperar que um serviço (como o do lifecycle manager) apareça.
+    action_server_result_timeout: 2000.0  # [double, default: 900.0] Tempo em segundos que o resultado de uma ação fica disponível antes de ser descartado.
+
+    # --- Seleção de Navegadores e Árvores de Comportamento ---
+    navigators: ["navigate_to_pose"]     # [vector<string>] Lista de "navegadores" que este servidor oferece. Cada um corresponde a uma ação ROS (ex: /navigate_to_pose).
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator" # [string] Plugin que implementa a lógica para a ação "navigate_to_pose".
+
+    # Caminho absoluto para o arquivo XML que define a árvore de comportamento a ser usada para a ação "navigate_to_pose".
+    # Este é o "cérebro" que define a sequência: planejar -> controlar -> recuperar de falhas.
+    # default_nav_to_pose_bt_xml: "/home/ubuntu/ros2_ws/src/nav_hub/btree/nav_on_route_graph_updated.xml" # --> updated é cara mais recente (02/04/2026)
+    default_nav_to_pose_bt_xml: "/home/ubuntu/ros2_ws/src/nav_hub/btree/nav_on_route_graph_oregon.xml"
+    # default_nav_to_pose_bt_xml: "/home/ubuntu/ros2_ws/src/nav_hub/btree/nav_on_route_graph_with_track.xml"
+    # default_nav_to_pose_bt_xml: "/home/ubuntu/ros2_ws/src/nav_hub/btree/nav_on_route_graph_waiting_for_obstacle.xml"
+
+    # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
+    # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
+    # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
+    # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
+
+    # plugin_lib_names is used to add custom BT plugins to the executor (vector of strings).
+    # Built-in plugins are added automatically
+    # plugin_lib_names: []
+
+    # --- Plugins e Códigos de Erro (Geralmente não alterados) ---
+    # plugin_lib_names: []               # [vector<string>] Para carregar bibliotecas de plugins de BT customizados.
+    # error_code_names:                    # [vector<string>] Mapeia nomes de códigos de erro para a porta "error_code" na BT.
+    #   - compute_path_error_code
+    #   - follow_path_error_code
+
+route_server:
+  ros__parameters:
+    # The graph_filepath does not need to be specified since it going to be set by defaults in launch.
+    # If you'd rather set it in the yaml, remove the default "graph" value in the launch file(s).
+    # file & provide full path to map below. If graph config or launch default is provided, it is used
+    # graph_filepath: $(find-pkg-share nav2_route)/graphs/dentalmed_final.json
+    graph_filepath: $(find-pkg-share nav_hub)/graphs/oregon.json
+    # graph_filepath: $(find-pkg-share nav_hub)/graphs/aceleradoras.json
+    # graph_filepath: $(find-pkg-share nav_hub)/graphs/teste.json
+    # graph_filepath: $(find-pkg-share nav_hub)/graphs/teste_oregon.json
+    boundary_radius_to_achieve_node: 1.0
+    radius_to_achieve_node: 2.0
+    smooth_corners: true
+    operations: ["AdjustSpeedLimit", "ReroutingService", "CollisionMonitor"]
+    ReroutingService:
+      plugin: "nav2_route::ReroutingService"
+    AdjustSpeedLimit:
+      plugin: "nav2_route::AdjustSpeedLimit"
+    CollisionMonitor:
+      plugin: "nav2_route::CollisionMonitor"
+      max_collision_dist: 3.0
+    edge_cost_functions: ["DistanceScorer", "CostmapScorer"]
+    DistanceScorer:
+      plugin: "nav2_route::DistanceScorer"
+    CostmapScorer:
+      plugin: "nav2_route::CostmapScorer"
+      invalid_on_collision: false
+
+map_server:
+  # Função: Carrega um mapa estático (geralmente de um arquivo .yaml) e o publica no tópico /map 
+  # para que outros nós (como AMCL e Global Costmap) possam usá-lo.
+  ros__parameters:
+    use_sim_time: false                  # [bool, default: false] Usar tempo de simulação.
+    frame_id: map                      # [string, default: "map"] O nome do frame em que o mapa é publicado. Deve corresponder ao global_frame.
+    topic_name: map                    # [string, default: "map"] O nome do tópico onde o mapa (nav_msgs/msg/OccupancyGrid) é publicado.
+    
+    # Caminho para o arquivo .yaml que descreve o mapa. Este arquivo aponta para o arquivo de imagem (.pgm) e contém metadados como resolução e origem.
+    # yaml_filename: "/home/ubuntu/ros2_ws/src/nav_hub/maps/aceleradoras.yaml"
+    yaml_filename: "/home/ubuntu/ros2_ws/src/nav_hub/maps/oregon.yaml"
+
+speed_filter_mask_server:
+  ros__parameters:
+    topic_name: "/speed_filter_mask"
+    # yaml_filename: "/home/ubuntu/ros2_ws/src/nav_hub/maps/aceleradoras_speed_mask.yaml"
+    yaml_filename: "/home/ubuntu/ros2_ws/src/nav_hub/maps/oregon_speed_mask.yaml"
+
+
+speed_costmap_filter_info_server:
+  ros__parameters:
+    type: 1
+    filter_info_topic: "/speed_costmap_filter_info"
+    mask_topic: "/speed_filter_mask"
+    base: 100.0
+    multiplier: -1.0
+
+
+      
+# controller_server:
+#     # Função: Servidor responsável por seguir um caminho (plano). 
+#     # Ele recebe um caminho do planner_server (via BT Navigator) e gera comandos de velocidade (/cmd_vel) para o robô, 
+#     # usando um plugin de controlador local.
+#   ros__parameters:
+#     # controller server parameters (see Controller Server for more info)
+#     controller_frequency: 15.0
+
+#     # --- Limites Mínimos de Velocidade ---
+#     # * Ruído do Sensor: A odometria do robô (geralmente de encoders de roda) pode ter um pequeno ruído. Mesmo que o robô esteja perfeitamente parado, a odometria pode reportar uma velocidade minúscula, como 0.0001 m/s.
+#     # * Comandos do Controlador: Um controlador local, ao tentar fazer um ajuste muito fino, pode gerar um comando de velocidade extremamente pequeno, como 0.0005 m/s. Essa velocidade é tão baixa que, na prática, os motores do robô nem conseguiriam superar a inércia e o atrito para executá-la.
+#     # Se o progress_checker simplesmente verificasse se velocidade > 0, ele poderia ser enganado por esses valores minúsculos e pensar que o robô está "progredindo", mesmo que na prática ele esteja parado.
+#     min_x_velocity_threshold: 0.015      # [double, default: 0.001] Limiar para velocidade linear em X.
+#     min_y_velocity_threshold: 0.5        # [double, default: 0.001] Limiar para velocidade linear em Y (para robôs omnidirecionais).
+#     min_theta_velocity_threshold: 0.05  # [double, default: 0.001] Limiar para velocidade angular.
+
+#     progress_checker_plugins: ["progress_checker"] # Lista dos checkers que validam se o robô está fazendo progresso (não travado)
+#     goal_checker_plugins: ["goal_checker"]  # Lista dos checkers que decidem quando o goal foi alcançado (tolerâncias de posição/orientação). 
+    
+#     # --- Configuração do Plugin `progress_checker` ---
+#     progress_checker:
+#       # "O robô se moveu uma distância mínima (required_movement_radius) dentro de um tempo máximo permitido (movement_time_allowance)?"
+#       # Se a resposta for "não", o ProgressChecker declara uma falha, o que geralmente faz com que o controller_server pare e o bt_navigator tente um comportamento de recuperação (como girar ou dar ré)
+#       plugin: "nav2_controller::SimpleProgressChecker" # [string] Plugin que verifica se o robô se moveu uma certa distância em um certo tempo.
+#       required_movement_radius: 0.05      # [double, default: 0.5] O robô deve se mover pelo menos este raio (em metros) para ser considerado como "progredindo". Se a distância for menor que o raio, o progresso não foi feito, e o cronômetro (movement_time_allowance) continua correndo.
+#       movement_time_allowance: 1000000000.0       # [double, default: 10.0] Tempo máximo em segundos que o robô pode ficar sem progredir antes de acionar uma falha. **Valor alto para desativar efetivamente esta verificação.**
+
+#     # --- Configuração do Plugin `goal_checker` ---
+#     goal_checker:
+#       plugin: "nav2_controller::SimpleGoalChecker" # [string] Plugin que verifica se a pose do robô está dentro de uma tolerância do alvo.
+#       xy_goal_tolerance: 0.15              # [double, default: 0.25] Tolerância de distância (em metros) para considerar que o alvo foi alcançado.
+#       yaw_goal_tolerance: 0.25             # [double, default: 0.25] Tolerância de ângulo (em radianos) para considerar que a orientação final foi alcançada.
+#       stateful: True                       # (bool, default: true) Quando true, uma vez que o robô entra na tolerância XY do alvo, ele "trava" nesse estado e se concentra apenas em atingir a orientação final, sem tentar corrigir novamente a posição XY. Isso evita oscilações no final do percurso. 
+
+#     FollowPath: #Lista dos controladores locais disponíveis
+#       # plugin: "dwb_core::DWBLocalPlanner"
+#       # rotation shim controller (para executar o giro no eixo)
+#       plugin: "nav2_rotation_shim_controller::RotationShimController"
+#       angular_dist_threshold: 0.785
+#       forward_sampling_distance: 1.0  #Forward distance, in meters, along path to select a sampling point to use to approximate path heading
+#       rotate_to_heading_angular_vel: 0.8
+#       max_angular_accel: 1.8
+#       simulate_ahead_time: 1.0 #Time in seconds to forward simulate a rotation command to check for collisions. If a collision is found, forwards control back to the primary controller plugin.
+#       rotate_to_goal_heading: true
+#       use_path_orientations: false
+#       closed_loop: true
+#       primary_controller: "dwb_core::DWBLocalPlanner" #Internal controller plugin to use for actual control behavior after rotating to heading
+      
+#       # parametros do DWB
+#       debug_trajectory_details: True
+#       min_vel_x: 0.0
+#       min_vel_y: 0.0
+#       max_vel_x: 0.7
+#       max_vel_y: 0.0
+#       max_vel_theta: 0.7
+#       min_speed_xy: 0.0
+#       max_speed_xy: 0.7
+#       min_speed_theta: -0.7
+#       acc_lim_x: 0.5
+#       acc_lim_y: 0.0
+#       acc_lim_theta: 1.0
+#       decel_lim_x: -0.5
+#       decel_lim_y: 0.0
+#       decel_lim_theta: -1.0
+#       vx_samples: 20
+#       vy_samples: 1
+#       vtheta_samples: 20
+#       sim_time: 3.5 #6.0
+#       discretize_by_time: false
+#       time_granularity: 0.5
+#       linear_granularity: 0.05
+#       angular_granularity: 0.025
+#       include_last_point: true    ######
+#       xy_goal_tolerance: 0.5    # Distância XY para “entrar na janela de goal” e iniciar a desaceleração, parando translacionalmente, com a finalidade de iniciar a critic RotateToGoal
+#       path_length_tolerance: 1.0    ####
+#       trans_stopped_velocity: 0.015  # Limiar para considerar que parou translacionalmente após iniciar a desaceleração dentro da "janela de goal", a iniciar a critic RotateToGoal
+#       short_circuit_trajectory_evaluation: True   ####
+#       limit_vel_cmd_in_traj: false      ####
+#       stateful: True
+#       critics: ["RotateToGoal", "Oscillation", "ObstacleFootprint", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+#       # PreferForward é um critic simples para favorecer movimento “para frente” e reduzir comportamentos indesejados como ré, strafing lento e rotação excessiva.
+#       # PreferForward:
+#         # penalty: 1.0  # (default 1.0) custo fixo aplicado nos casos “ruins” (ré ou quase-strafe).
+#         # strafe_x: 0.1 # (default 0.1) limiar de vx abaixo do qual considera “pouco avanço”.
+#         # strafe_theta: 0.2 # (default 0.2) limiar de rotação para identificar movimento quase lateral/parado.
+#         # theta_scale: 10.0   # (default 10.0)  fator de custo proporcional à rotação (|w|).
+      
+#       # Twirling é o critic mais simples de todos: ele só penaliza velocidade angular.
+#       # Twirling: 
+#       #   scale: 1.0  #peso dessa penalização no score total. alto: robô evita girar, favorece trajetórias mais retas/suaves. scale muito alto: pode dificultar manobras em curvas fechadas e ajustes de heading.
+
+#       #  A RotateToGoal é uma crítica stateful que controla o comportamento de chegada: primeiro desacelera translacionalmente, depois permite só rotação para acertar o yaw final.
+#       RotateToGoal:
+#         scale: 10.0         # (Defalt: 1.0) Peso final dessa crítica na soma total do DWB.
+#         slowing_factor: 5.0   # (Defalt: 5.0)  Quanto penalizar translação residual na fase de desaceleração. Ele multiplica a penalização de velocidade translacional residual perto do goal.
+#         # Maior slowing_factor: castiga mais qualquer translação perto do goal -> robô desacelera antes e entra em rotação final mais “limpa”.
+#         # Menor slowing_factor: tolera mais movimento linear perto do goal -> pode chegar mais rápido, mas com risco de overshoot/menos precisão na orientação.
+#         lookahead_time: -1.0   #  (Defalt: -1.0) Tempo de previsão para avaliar yaw (se <0, usa última pose). Define em que instante da trajetória você mede o yaw para calcular erro angular.
+#         # lookahead_time < 0 (padrão): usa o yaw da última pose da trajetória. -1: comportamento clássico “onde vou terminar”.
+#         # lookahead_time >= 0: projeta pose no tempo t e usa o yaw dessa pose. lookahead_time pequeno positivo (ex. 0.1–0.3): avalia yaw “mais cedo”, resposta mais imediata. Maior: olha mais para o futuro dentro da trajetória; pode suavizar ou atrasar reação.
+#         # Intuição prática de tuning
+#         #   * Robô chega rápido mas passa reto no fim: aumente RotateToGoal.scale e/ou slowing_factor.
+#         #   * Robô “trava” cedo demais: reduza slowing_factor ou ajuste trans_stopped_velocity.
+#         #   * Robô oscila no yaw final: teste lookahead_time pequeno positivo (ex. 0.1~0.3) e ajuste com GoalAlign.
+
+#       # A Oscillation é um critic stateful que bloqueia comandos de vai-e-volta repetitivos (jitter), em x, y e theta.
+#       # Se detecta troca de sinal frequente (ex.: +x, depois -x, depois tenta +x de novo sem “reset”), considera os novos comandos como oscilação e invalida trajetórias que repetem esse padrão.
+#       Oscillation:
+#         scale: 1.0    # (Defalt: ) 
+#         oscillation_reset_dist: 0.05    # (Defalt: 0.05)  distância mínima para liberar restrições.
+#         oscillation_reset_angle: 0.17    # (Defalt: 0.2)  rotação mínima para liberar restrições.
+#         oscillation_reset_time: -1.0    # (Defalt: -1.0) tempo mínimo para liberar; <0 desabilita reset por tempo.
+#         x_only_threshold: 0.05    # (Defalt: 0.05) só monitora oscilação de y e theta quando |x| <= threshold. ideia: se está andando pra frente de fato, não penalizar tanto strafing/rotação.
+#         # Intuição de tuning
+#         #   * Oscila muito (frente-trás / gira-esquerda-direita): aumente oscillation_reset_dist ou oscillation_reset_time.
+#         #   * Está “travando” e demorando a liberar manobras: reduza oscillation_reset_dist/angle/time.
+#         #   * Para diferencial puro, x_only_threshold pequeno ajuda a focar em oscilação real durante baixa translação.
+
+#       # Ela verifica, para cada pose da trajetória, se o footprint orientado do robô (polígono) encosta em célula letal/desconhecida na costmap. Se encostar, a trajetória é inválida.
+#       ObstacleFootprint:
+#         scale: 20.0       #  (Defalt: 1.0)  Peso no total da função custo.
+#         sum_scores: true #  (Defalt: false) false: usa essencialmente score da última pose. true: soma scores de todas as poses da trajetória.
+      
+#       # Cria um campo de distância (Manhattan na grade) até o último ponto do plano que está no costmap local. Incentiva progresso até o fim do trecho local do plano.
+#       # Quanto menor a distância desse campo no fim da trajetória local (mapa local), menor é o custo
+#       # cada célula do mapa de custo guarda “quão longe” ela está da do destino final local (ultimo ponto da rota globla dentro do mapa local).     
+#       GoalDist:
+#         scale: 1.0    #  (Defalt: 1.0) Se aumentar GoalDist.scale, o robô prioriza mais “chegar perto do fim do plano local”.
+#         aggregation_type: "last"   #  (Defalt: last) Como combinar o score das várias poses da trajetória.
+
+#       # GoalAlign é a crítica que tenta fazer o robô apontar na direção correta para o objetivo (especialmente no trecho final), usando a “frente” do robô (forward_point_distance)
+#       # Ela herda de GoalDist, mas com um truque de alinhamento:
+#       #   1. Define um ponto à frente do robô (forward_point_distance).
+#       #   2. Em vez de pontuar o centro do robô, ela pontua esse ponto “nariz”.
+#       #   3. Também ajusta o alvo final no prepare() para evitar instabilidade perto do goal (principalmente giros de 180 graus).
+#       GoalAlign:
+#         forward_point_distance: 0.325 #  (Defalt: 0.325)  Distância do ponto à frente usado para pontuar alinhamento. Maior valor: critic fica mais exigente com orientação. Valor muito alto pode deixar comportamento nervoso em espaços apertados.
+#         scale: 1.0     #  (Defalt: 1.0) 
+#         aggregation_type: last   #  (Defalt: last) 
+#         # last (padrão): Usa o score da última pose da trajetória.
+#         #   * Foco: “onde essa trajetória termina”.
+#         # sum: Soma score de todas as poses.
+#         #   * Foco: “qualidade do percurso inteiro”. Penaliza trajetórias que passam muito tempo longe do alvo/path, mesmo que terminem bem.
+#         # product: Multiplica scores das poses (quando score acumulado > 0).
+#         #   * Fica muito sensível a valores altos e zero; geralmente menos intuitivo para tuning.
+
+
+#       # PathDist é uma crítica de aderência ao caminho global: ela mede quão longe a trajetória candidata fica do path, usando um campo de distância em grade.
+#       # pergunta: “o robô está perto do path?”
+#       PathDist:
+#         scale: 50.0  #  (Defalt: 1.0) Se PathDist.scale estiver alto, ela domina a decisão e reduz desvios laterais. Se estiver baixo, outras críticas (obstáculo, goal, rotação etc.) podem permitir atalhos.
+#         aggregation_type: "last"       #  (Defalt: last) 
+      
+#       # Alinha o “nariz” do robô com o traçado do caminho.
+#       # A PathAlign tenta manter a frente do robô (não o centro) alinhada com o caminho global local.
+#       # Ela herda de PathDist, então usa campo de distância em grade até o path, mas pontuando um ponto à frente do robô (forward_point_distance).
+#       # PathAlign desliga o efeito perto do goal para evitar instabilidade
+#       # pergunta: “a frente do robô está apontando para seguir o path?”
+#       PathAlign:
+#         scale: 1.0    #  (Defalt: 1.0)  Maior -> robô privilegia mais alinhamento do nariz ao path.
+#         forward_point_distance: 0.325 #  (Defalt: 0.325)  Maior -> mais exigente com orientação; pode ficar nervoso se exagerar.
+#         aggregation_type: last       #  (Defalt: last) 
+
+      
+controller_server:
+  # Função: Servidor responsável por seguir um caminho (plano). 
+  # Ele recebe um caminho do planner_server (via BT Navigator) e gera comandos de velocidade (/cmd_vel) para o robô, 
+  # usando um plugin de controlador local.
+  ros__parameters:
+    # controller server parameters (see Controller Server for more info)
+    controller_frequency: 15.0
+    # --- Limites Mínimos de Velocidade ---
+    # * Ruído do Sensor: A odometria do robô (geralmente de encoders de roda) pode ter um pequeno ruído. Mesmo que o robô esteja perfeitamente parado, a odometria pode reportar uma velocidade minúscula, como 0.0001 m/s.
+    # * Comandos do Controlador: Um controlador local, ao tentar fazer um ajuste muito fino, pode gerar um comando de velocidade extremamente pequeno, como 0.0005 m/s. Essa velocidade é tão baixa que, na prática, os motores do robô nem conseguiriam superar a inércia e o atrito para executá-la.
+    # Se o progress_checker simplesmente verificasse se velocidade > 0, ele poderia ser enganado por esses valores minúsculos e pensar que o robô está "progredindo", mesmo que na prática ele esteja parado.
+    min_x_velocity_threshold: 0.015      # [double, default: 0.001] Limiar para velocidade linear em X.
+    min_y_velocity_threshold: 0.5        # [double, default: 0.001] Limiar para velocidade linear em Y (para robôs omnidirecionais).
+    min_theta_velocity_threshold: 0.05  # [double, default: 0.001] Limiar para velocidade angular.
+
+
+    progress_checker_plugins: ["progress_checker"] # Lista dos checkers que validam se o robô está fazendo progresso (não travado)
+    goal_checker_plugins: ["goal_checker"]  # Lista dos checkers que decidem quando o goal foi alcançado (tolerâncias de posição/orientação). 
+    
+    # --- Configuração do Plugin `progress_checker` ---
+    progress_checker:
+      # "O robô se moveu uma distância mínima (required_movement_radius) dentro de um tempo máximo permitido (movement_time_allowance)?"
+      # Se a resposta for "não", o ProgressChecker declara uma falha, o que geralmente faz com que o controller_server pare e o bt_navigator tente um comportamento de recuperação (como girar ou dar ré)
+      plugin: "nav2_controller::SimpleProgressChecker" # [string] Plugin que verifica se o robô se moveu uma certa distância em um certo tempo.
+      required_movement_radius: 0.05      # [double, default: 0.5] O robô deve se mover pelo menos este raio (em metros) para ser considerado como "progredindo". Se a distância for menor que o raio, o progresso não foi feito, e o cronômetro (movement_time_allowance) continua correndo.
+      movement_time_allowance: 1000000000.0       # [double, default: 10.0] Tempo máximo em segundos que o robô pode ficar sem progredir antes de acionar uma falha. **Valor alto para desativar efetivamente esta verificação.**
+
+    # --- Configuração do Plugin `goal_checker` ---
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker" # [string] Plugin que verifica se a pose do robô está dentro de uma tolerância do alvo.
+      xy_goal_tolerance: 0.05              # [double, default: 0.25] Tolerância de distância (em metros) para considerar que o alvo foi alcançado.
+      yaw_goal_tolerance: 0.1             # [double, default: 0.25] Tolerância de ângulo (em radianos) para considerar que a orientação final foi alcançada.
+      stateful: True                       # (bool, default: true) Quando true, uma vez que o robô entra na tolerância XY do alvo, ele "trava" nesse estado e se concentra apenas em atingir a orientação final, sem tentar corrigir novamente a posição XY. Isso evita oscilações no final do percurso. 
+
+    speed_limit_topic: /speed_limit
+
+    FollowPath: #Lista dos controladores locais disponíveis
+      # plugin: "dwb_core::DWBLocalPlanner"
+      # rotation shim controller (para executar o giro no eixo)
+      # plugin: "nav2_rotation_shim_controller::RotationShimController"
+      # angular_dist_threshold: 0.785
+      # forward_sampling_distance: 1.0  #Forward distance, in meters, along path to select a sampling point to use to approximate path heading
+      # rotate_to_heading_angular_vel: 0.6
+      # max_angular_accel: 0.8
+      # simulate_ahead_time: 0.2 #Time in seconds to forward simulate a rotation command to check for collisions. If a collision is found, forwards control back to the primary controller plugin.
+      # rotate_to_goal_heading: true
+      # use_path_orientations: false
+      # closed_loop: false
+      # primary_controller: "nav2_regulated_pure_pursuit_controller::CustomRegulatedPurePursuitController" #Internal controller plugin to use for actual control behavior after rotating to heading
+      plugin: "nav2_regulated_pure_pursuit_controller::CustomRegulatedPurePursuitController"
+      # parametros do rpp
+      # --- VELOCIDADES ---
+      desired_linear_vel: 0.7              # [double] Velocidade linear base que o robô tentará atingir em retas.
+# 0,6 e 2 m
+      # --- LOOKAHEAD (Parâmetro principal do Pure Pursuit) ---
+      lookahead_dist: 1.5      #0.9            # (double, default: 0.6 m) Distância à frente do robô para encontrar o "ponto-alvo" a ser perseguido. Um valor maior suaviza o caminho, mas corta mais as quinas.
+      use_velocity_scaled_lookahead_dist: true # (bool, default: false) Se true, a distância de lookahead é escalonada com a velocidade do robô (maior velocidade = maior lookahead).
+      min_lookahead_dist: 0.5   #0.2           # (double, default: 0.9 m) Distância mínima de lookahead, quando esta usando a velocity scaled lookahead distances (use_velocity_scaled_lookahead_dist).
+      max_lookahead_dist: 1.5    #0.8          # (double, default: 1.5 m) Distância máxima de lookahead, quando esta usando a velocity scaled lookahead distances (use_velocity_scaled_lookahead_dist).
+      lookahead_time: 1.0                  # (double, default: 1.5 s) O "ganho" para o lookahead adaptativo. A distância de lookahead é calculada como velocidade_atual * lookahead_time. Um valor maior fará com que o lookahead aumente mais rapidamente com a velocidade.
+
+      # --- Parâmetros de Detecção de Colisão (Baseado em Custo) ---
+      use_collision_detection: true        # (bool, default: true) Ativa a verificação de colisão. O controlador simula o movimento ao longo do arco e verifica os custos no costmap local.
+      min_distance_to_obstacle: 1.0       # (double, default: -1.0 m) A menor distância permitida entre o robô e um obstáculo ao longo de sua trajetória. Defina como <= 0,0 para desativar. Ela é limitada à distância máxima de antecipação selecionada.
+      max_allowed_time_to_collision_up_to_carrot: 1.0 # (double, default: 1.0 s) O tempo no futuro para simular o movimento. O controlador projeta a trajetória para frente por este tempo e, se uma colisão for detectada dentro deste horizonte, ele reduzirá a velocidade.
+
+      # --- Parâmetros de Regulação de Velocidade(Comportamento Inteligente) ---
+      use_regulated_linear_velocity_scaling: true # (bool, default: true) Ativa a redução de velocidade em curvas fechadas.
+      regulated_linear_scaling_min_radius: 4.0    # (double, default: 0.90 m) O raio de curvatura do caminho abaixo do qual a velocidade começa a ser reduzida. Curvas mais fechadas têm raios menores.
+      regulated_linear_scaling_min_speed: 0.1    # (double, default: 0.25 m/s) Velocidade mínima a ser usada em curvas muito fechadas.  Deve ser > 0,1.
+
+      # -----Regulação por Proximidade de Obstáculos (Custo)----
+      use_cost_regulated_linear_velocity_scaling: true # (bool, default: true) Ativa a redução de velocidade quando o robô está perto de obstáculos (em áreas de alto custo no costmap).
+      cost_scaling_dist: 1.0               # (double, default: 0.6 m) A distância de um obstáculo (geralmente dentro da camada de inflação) que aciona a redução de velocidade.
+      cost_scaling_gain: 1.0               # (double, default: 1.0) Um multiplicador (<= 1.0) para a velocidade. Quanto menor o valor, mais agressivamente a velocidade é reduzida perto de obstáculos.
+
+      # --- CURVATURA (Avançado) ---
+      use_fixed_curvature_lookahead: true  # (bool, default: false) Se true, usa uma distância de lookahead fixa (curvature_lookahead_dist) apenas para o cálculo da curvatura, independentemente da distância de lookahead usada para o controle. Isso pode estabilizar o cálculo da curvatura quando o lookahead de controle é muito variável.
+      curvature_lookahead_dist: 1.0        # (double, default: 0.6 m) A distância fixa usada para calcular a curvatura se use_fixed_curvature_lookahead for true.
+      interpolate_curvature_after_goal: false # (bool, default: false) Um ajuste fino para evitar oscilações no final do caminho, interpolando um ponto de curvatura extra após o alvo. Requer que use_fixed_curvature_lookahead seja true.
+
+
+      # ------ Parâmetros de Aproximação ao Alvo-----
+      min_approach_linear_velocity: 0.08   # (double, default: 0.05 m/s) Uma velocidade linear mínima garantida ao se aproximar do alvo. Isso evita que o robô pare completamente se a desaceleração for muito agressiva.
+      approach_velocity_scaling_dist: 1.0  # (double, default: 0.6 m) A distância do final do caminho na qual o robô começa a desacelerar linearmente da sua velocidade atual até a min_approach_linear_velocity.
+
+      # ----- Parâmetros de Rotação para Alinhamento-----
+      use_rotate_to_heading: false          # (bool, default: true) Ativa o comportamento. Se o robô estiver desalinhado com a direção do caminho por um ângulo maior que rotate_to_heading_min_angle, ele irá parar e girar no lugar antes de começar a se mover. Recomendado para todos os robôs que podem girar no lugar.
+      rotate_to_heading_angular_vel: 0.6   # (double, default: 1.8 rad/s) A velocidade angular a ser usada durante a manobra de "rotate to heading".
+      rotate_to_heading_min_angle: 0.785   # (double, default: 0.785 rad) O ângulo de erro mínimo (em radianos, ~45°) que aciona a manobra de rotação no lugar (quando use_rotate_to_heading = true).
+      max_angular_accel: 1.2     #1.5       (double, default: 3.2 rad/s²)  A aceleração angular máxima permitida durante a manobra de rotação.
+
+      # ----- Parâmetros de Cancelamento e Busca----
+      use_cancel_deceleration: true  # (bool, default: false) Se true, aplica uma desaceleração controlada quando a navegação é cancelada, em vez de parar abruptamente.
+      cancel_deceleration: 1.0  # (double, default: 3.2 m/s²) A desaceleração a ser aplicada se use_cancel_deceleration for true.
+      max_robot_pose_search_dist: 4.0     # (double, default: metade da extensão do costmap) Limite superior da distância integrada ao longo do plano global para buscar a pose mais próxima da pose do robô. Este valor deve ser mantido como padrão, a menos que existam caminhos com loops e interseções que não saiam do mapa de custo local, caso em que diminuir esse valor é necessário para evitar atalhos. Se definido como -1, usará a distância máxima possível para buscar em cada ponto do caminho o ponto mais próximo.
+
+      # --- OUTROS ---
+      use_path_aware_obstacle_distance: false # Novo parametro para a correcao do obstacle distance com velocity_scaled_lookahead
+      allow_reversing: false               # (bool, default: false) Permite que o robô ande de ré. Isso só funciona se o planejador global gerar caminhos que incluam pontos de inflexão (cusps) na orientação. Se false, o robô sempre tentará seguir o caminho para a frente.
+      transform_tolerance: 0.1             # [double] Tolerância de tempo (em segundos) para transformadas (TF).
+      stateful: true                       # (bool, default: true) Quando true, uma vez que o robô entra na tolerância XY do alvo, ele "trava" nesse estado e se concentra apenas em atingir a orientação final, sem tentar corrigir novamente a posição XY. Isso evita oscilações no final do percurso. 
+     
+        
+
+# controller_server:
+#   ros__parameters:
+#     controller_frequency: 30.0
+#     FollowPath:
+#       plugin: "nav2_mppi_controller::MPPIController"
+#       time_steps: 56
+#       model_dt: 0.05
+#       batch_size: 2000
+#       vx_std: 0.2
+#       vy_std: 0.0
+#       wz_std: 0.4
+#       vx_max: 0.5
+#       vx_min: 0.0
+#       vy_max: 0.0
+#       wz_max: 0.5
+#       iteration_count: 1
+#       prune_distance: 1.7
+#       transform_tolerance: 0.1
+#       temperature: 0.3
+#       gamma: 0.015
+#       motion_model: "DiffDrive"
+#       visualize: false
+#       TrajectoryVisualizer:
+#         trajectory_step: 5
+#         time_step: 3
+#       # AckermannConstraints:
+#         # min_turning_r: 0.2
+#       critics: ["ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic", "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
+#       ConstraintCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 4.0
+#       GoalCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 5.0
+#         threshold_to_consider: 0.9
+#       GoalAngleCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 3.0
+#         threshold_to_consider: 0.5
+#       PreferForwardCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 10.0
+#         threshold_to_consider: 0.5
+#       # Option to replace Cost and use Obstacles instead
+#       # ObstaclesCritic:
+#       #   enabled: true
+#       #   cost_power: 1
+#       #   repulsion_weight: 1.5
+#       #   critical_weight: 20.0
+#       #   consider_footprint: false
+#       #   collision_cost: 10000.0
+#       #   collision_margin_distance: 0.1
+#       #   near_goal_distance: 0.5
+#       CostCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 3.81
+#         critical_cost: 300.0
+#         consider_footprint: true
+#         collision_cost: 1000000.0
+#         near_goal_distance: 1.0
+#         trajectory_point_step: 2
+#       PathAlignCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 14.0
+#         max_path_occupancy_ratio: 0.05
+#         trajectory_point_step: 4
+#         threshold_to_consider: 0.5
+#         offset_from_furthest: 20
+#         use_path_orientations: false
+#       PathFollowCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 5.0
+#         offset_from_furthest: 5
+#         threshold_to_consider: 1.4
+#       PathAngleCritic:
+#         enabled: true
+#         cost_power: 1
+#         cost_weight: 2.0
+#         offset_from_furthest: 4
+#         threshold_to_consider: 0.5
+#         max_angle_to_furthest: 1.0
+#         forward_preference: true
+#       # VelocityDeadbandCritic:
+#       #   enabled: true
+#       #   cost_power: 1
+#       #   cost_weight: 35.0
+#       #   deadband_velocities: [0.05, 0.05, 0.05]
+#       # TwirlingCritic:
+#       #   enabled: true
+#       #   twirling_cost_power: 1
+#       #   twirling_cost_weight: 10.0
+   
+local_costmap:
+  # Função: Cria um pequeno mapa de custos centrado no robô. 
+  # Ele é "rolante" (rolling window), movendo-se com o robô. 
+  # Sua principal função é detectar obstáculos dinâmicos e próximos usando sensores como o LiDAR. 
+  # É usado pelo controlador local para evitar colisões imediatas.
+  local_costmap:
+    ros__parameters:
+      # --- Frequência e Frames ---
+      update_frequency: 5.0                # [double, default: 5.0] Frequência em Hz com que o mapa de custos é atualizado com novos dados de sensores.
+      publish_frequency: 1.0               # [double, default: 1.0] Frequência em Hz com que o mapa de custos é publicado para visualização (ex: no RViz).
+      global_frame: odom                 # [string, default: "odom"] Frame de referência para o mapa local. 'odom' é comum para que o mapa não salte com as correções do AMCL.
+      robot_base_frame: base_footprint   # [string, default: "base_link"] Frame do robô.
+
+      # --- Configuração da Janela Rolante ---
+      use_sim_time: false                  # [bool, default: false] Usar tempo de simulação.
+      rolling_window: true                 # [bool, default: false] Habilita o modo "janela rolante", onde o mapa se move com o robô. Essencial para o mapa local.
+      width: 8                             # [int, default: 10] Largura do mapa em metros.
+      height: 8                            # [int, default: 10] Altura do mapa em metros.
+      resolution: 0.05                   # [double, default: 0.05] Resolução do mapa em metros/pixel. Menor = mais detalhado, mais caro computacionalmente.
+
+      # --- Geometria do Robô ---
+      # Define o contorno 2D do robô como uma lista de pontos [x, y]. Usado para colisões e inflação.
+      # footprint: "[[0.16, -0.25], [0.16, 0.25], [-0.40, 0.25], [-0.40, -0.25]]" #default
+      footprint: "[[0.26, -0.25], [0.26,  0.25], [-0.26,  0.25], [-0.26,  0.085], [-0.54,  0.085], [-0.54, -0.085], [-0.26, -0.085], [-0.26, -0.25]]" #OREGON
+      # footprint: "[[0.85, -0.35], [0.85, 0.35], [-0.85, 0.35], [-0.85, -0.35]]" #dentalmed
+      # robot_radius: 0.35                # [double] Alternativa ao footprint para robôs circulares.
+
+      # --- Camadas (Layers) do Mapa de Custos ---
+      # plugins: ["obstacle_layer", "inflation_layer", "stvl_layer"] # [vector<string>] Lista de camadas a serem usadas para construir o mapa de custos final.
+      plugins: ["obstacle_layer", "inflation_layer"] # [vector<string>] Lista de camadas a serem usadas para construir o mapa de custos final.
+
+      
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer" # [string] Plugin que "infla" os obstáculos, criando uma zona de segurança ao redor deles.
+        inflate_unknown: true                # [bool, default: false] Se deve inflar células desconhecidas.
+        cost_scaling_factor: 10.0             # [double, default: 10.0] Fator de decaimento do custo. Menor = decaimento mais lento.
+        inflation_radius: 0.3                # [double, default: 0.55] Raio em metros da zona de inflação ao redor dos obstáculos.
+      
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer" # [string] Plugin que adiciona leituras de sensores (como LaserScan) ao mapa de custos.
+        enabled: True                        # [bool, default: True] Habilita a camada.
+        observation_sources: scan            # [string] Nomes das fontes de observação a serem usadas (definidas abaixo).
+        scan:
+          topic: /scan                       # [string] Tópico do sensor.
+          max_obstacle_height: 2.0           # [double, default: 2.0] Altura máxima para considerar uma leitura como obstáculo.
+          clearing: True                     # [bool, default: True] Permite que o sensor limpe o espaço livre.
+          marking: True                      # [bool, default: True] Permite que o sensor marque novos obstáculos.
+          data_type: "LaserScan"             # [string] Tipo de dados do sensor.
+          raytrace_max_range: 8.0            # [double, default: 3.0] Distância máxima para limpar o espaço livre.
+          raytrace_min_range: 0.0            # [double, default: 0.0] Distância mínima para limpar o espaço livre.
+          obstacle_max_range: 2.5            # [double, default: 2.5] Distância máxima para marcar obstáculos.
+          obstacle_min_range: 0.0            # [double, default: 0.0] Distância mínima para marcar obstáculos.
+
+          # Permite que o costmap trate os valores 'inf' (infinito) do laser
+          # como leituras válidas, limpando o espaço livre até o alcance máximo do sensor.
+          # Essencial para ambientes abertos.
+          inf_is_valid: true
+          
+      stvl_layer:
+        plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+        enabled: true
+        voxel_decay: 4.
+        decay_model: 0 #linear
+        voxel_size: 0.1
+        track_unknown_space: true
+        unknown_threshold: 15
+        mark_threshold: 0
+        update_footprint_enabled: true
+        combination_method: 1 # MAX (pega o maior custo entre camadas)
+        origin_z: 0.0
+        publish_voxel_map: true #True apenas para debug, alto custo computacional
+        transform_tolerance: 0.2
+        mapping_mode: false # false p/ navegacao
+        map_save_duration: 60.0
+        observation_sources: pointcloud
+        pointcloud:
+          data_type: PointCloud2
+          # topic: /cloud
+          topic: /ground_segmentation/obstacle_points
+          marking: true
+          clearing: true
+          obstacle_range: 1.8
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.6
+          expected_update_rate: 0.0
+          observation_persistence: 0.0
+          inf_is_valid: false
+          filter: "voxel" # "passthrough" ou "voxel"
+          voxel_min_points: 6 # com 20 pontos ele pega menos lixo, considerar parametro de binning ou algo asism?
+          clear_after_reading: true
+          max_z: 1.0
+          min_z: 0.2
+          vertical_fov_angle: 1.047 # maix sense tem 60 graus de fov vertical, ou seja, 1.047 radianos
+          horizontal_fov_angle: 1.22 #maix sense tem 70 graus de fov vertical, ou seja, 1.22 radianos
+          decay_acceleration: 10.0
+          model_type: 0
+
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+        
+      always_send_full_costmap: True       # [bool, default: False] Publica o mapa de custos inteiro em vez de apenas as atualizações. Útil para algumas ferramentas de depuração.
+
+
+global_costmap:
+  # Função: Cria um mapa de custos do tamanho do mapa estático inteiro. 
+  # Ele combina o mapa estático (paredes, etc.) com obstáculos detectados por sensores.
+  # É usado pelo planejador global para encontrar um caminho do início ao fim que evite obstáculos conhecidos.
+  global_costmap:
+    ros__parameters:
+      # --- Frequência e Frames ---
+      update_frequency: 5.0                # [double, default: 5.0] Frequência de atualização.
+      publish_frequency: 1.0               # [double, default: 1.0] Frequência de publicação para visualização.
+      transform_tolerance: 0.5            # [double, default: 0.5] Tolerância de tempo para transformadas (TF).
+      global_frame: map                    # [string, default: "map"] Frame de referência global.
+      robot_base_frame:  base_footprint    # [string, default: "base_link"] Frame do robô.
+      use_sim_time: false                  # [bool, default: false]
+
+      # --- Geometria e Resolução ---
+      # footprint: "[[0.16, -0.25], [0.16, 0.25], [-0.40, 0.25], [-0.40, -0.25]]" # [string] Contorno do robô. #default
+      footprint: "[[0.26, -0.25], [0.26,  0.25], [-0.26,  0.25], [-0.26,  0.085], [-0.54,  0.085], [-0.54, -0.085], [-0.26, -0.085], [-0.26, -0.25]]" #OREGON
+      # robot_radius: 0.35 
+      # footprint: "[[0.85, -0.35], [0.85, 0.35], [-0.85, 0.35], [-0.85, -0.35]]" #dentalmed
+      resolution: 0.05                    # [double, default: 0.05] Resolução do mapa. DEVE ser a mesma do mapa estático.
+      track_unknown_space: true            # [bool, default: false] Trata o espaço desconhecido como potencialmente transitável ou não.
+
+      # --- Camadas (Layers) ---
+      # A ordem é importante: estático primeiro, depois obstáculos, depois inflação.
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      filters: ["speed_filter"] 
+      
+      obstacle_layer:
+        # Configuração idêntica à do mapa local, para adicionar obstáculos em tempo real ao mapa global.
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan                       # [string] Tópico do sensor.
+          max_obstacle_height: 2.0           # [double, default: 2.0] Altura máxima para considerar uma leitura como obstáculo.
+          clearing: True                     # [bool, default: True] Permite que o sensor limpe o espaço livre.
+          marking: True                      # [bool, default: True] Permite que o sensor marque novos obstáculos.
+          data_type: "LaserScan"             # [string] Tipo de dados do sensor.
+          raytrace_max_range: 5.0            # [double, default: 3.0] Distância máxima para limpar o espaço livre.
+          raytrace_min_range: 0.0            # [double, default: 0.0] Distância mínima para limpar o espaço livre.
+          obstacle_max_range: 2.5            # [double, default: 2.5] Distância máxima para marcar obstáculos.
+          obstacle_min_range: 0.0            # [double, default: 0.0] Distância mínima para marcar obstáculos.
+          
+          # Permite que o costmap trate os valores 'inf' (infinito) do laser
+          # como leituras válidas, limpando o espaço livre até o alcance máximo do sensor.
+          # Essencial para ambientes abertos.
+          inf_is_valid: true
+      
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer" # [string] Plugin que se inscreve no tópico /map e adiciona o mapa estático como base.
+        map_subscribe_transient_local: True  # [bool, default: false] Usa QoS "transient local" para obter o mapa assim que se conecta.
+      
+      inflation_layer:
+        # Configuração similar à do mapa local, mas o raio de inflação pode ser diferente.
+        plugin: "nav2_costmap_2d::InflationLayer"
+        inflate_unknown: true
+        cost_scaling_factor: 10.0
+        inflation_radius: 0.3               # [double, default: 0.55] Raio de inflação, pode ser maior no mapa global para encorajar o planejador a ficar mais longe das paredes.
+        
+      speed_filter:
+        plugin: "nav2_costmap_2d::SpeedFilter"
+        enabled: True
+        filter_info_topic: "/speed_costmap_filter_info"
+        speed_limit_topic: "/speed_limit"
+      always_send_full_costmap: True       # [bool, default: False]
+
+amcl:
+  # Função: (Adaptive Monte Carlo Localization) - O principal algoritmo de localização do ROS. 
+  # Ele estima a posição do robô no mapa estático comparando as leituras do sensor laser (/scan) com o mapa (/map) e usando a odometria (/odom) como uma previsão de movimento.
+  ros__parameters:
+    use_sim_time: false
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+
+    # --- Parâmetros do Modelo de Movimento (Ruído da Odometria) ---
+    # Controlam a incerteza adicionada a cada passo de odometria. alpha1 e alpha2 para rotação, alpha3 e alpha4 para translação.
+    alpha1: 0.2                           # [double, default: 0.2] Ruído rotacional (heading) devido ao movimento rotacional.
+    alpha2: 0.2                            # [double, default: 0.2] Ruído rotacional devido ao movimento translacional.
+    alpha3: 0.2                            # [double, default: 0.2] Ruído translacional devido ao movimento translacional.
+    alpha4: 0.2                            # [double, default: 0.2] Ruído translacional devido ao movimento rotacional.
+    # alpha5: 0.2                          # (Não usado em modelos diferenciais)
+
+    # --- Frames ---
+    base_frame_id: base_footprint          # [string, default: "base_link"] Frame do robô.
+    global_frame_id: map                   # [string, default: "map"] Frame do mapa global.
+    odom_frame_id: odom                    # [string, default: "odom"] Frame da odometria.
+    scan_topic: scan
+    map_topic: map
+    
+    # --- Parâmetros do Modelo do Sensor (Laser). Definem a Estrutura do Campo---
+    laser_model_type: "likelihood_field"   # [string, default: "likelihood_field"] Define como o algoritmo decide se uma pose de robô é "boa" ou "ruim" com base no que o sensor laser está vendo. "Se o robô estivesse exatamente nesta pose (x, y, θ), qual é a probabilidade (likelihood) de ele ter recebido exatamente esta leitura de laser?" 
+    # beam: Este modelo tenta simular a física real de um feixe de laser. Para cada partícula (hipótese de pose) e para cada feixe na leitura do laser, ele calcula a probabilidade.  (usa z_hit, z_short, z_max e z_rand) da distância medida por aquele feixe. 
+      # Ele faz isso considerando uma mistura de quatro distribuições de probabilidade: (O modelo de feixe então combina essas quatro probabilidades para obter a probabilidade final de uma única leitura.) 
+        # 1. Acerto Intrínseco (Hit): A probabilidade de o feixe ter atingido um obstáculo no mapa na distância esperada. Isso é modelado como uma distribuição Gaussiana (um "sino") centrada na distância até o obstáculo mais próximo no mapa naquela direção. Se a leitura do laser bate com a distância no mapa, a probabilidade é alta.
+        # 2. Obstáculos Inesperados (Short): Representa a probabilidade de a leitura de um feixe ter sido causada por um obstáculo inesperado (não mapeado) que está mais perto do que o obstáculo no mapa estático. Isso é modelado como uma distribuição exponencial decrescente.
+        # 3. Falha de Medição (Max): A probabilidade do feixe não ter capturado nenhum obstáculo e retornado seu alcance máximo, mesmo que no mapa estático houvesse um obstáculo mais perto. Isso é modelado como um pequeno pico de probabilidade na distância máxima do sensor.
+        # 4. Medição Aleatória (Rand): O peso da distribuição "aleatória" (Rand). Representa a probabilidade de uma leitura ser completamente aleatória e sem sentido, como um reflexo de um espelho, interferência, pessoas passando.. Isso é modelado como uma distribuição uniforme em toda a faixa do sensor.
+    # likelihood_field  (O Padrão Moderno): Este modelo é uma abordagem muito mais prática, rápida e robusta. Em vez de fazer cálculos caros em tempo real, ele faz um pré-processamento inteligente. (usa z_hit e z_rand)
+      # Passo 1: Pré-cálculo do Campo de Verossimilhança (Likelihood Field):  Antes de começar a localização, o AMCL pega o mapa estático e pré-calcula um novo grid, o "campo de verossimilhança".
+        # Para cada célula (x, y) neste novo grid, ele armazena a distância até o obstáculo mais próximo.
+        # Células que são obstáculos têm distância 0. Células a um passo de um obstáculo têm distância 1, e assim por diante. Isso é calculado de forma muito eficiente usando um algoritmo como o "Distance Transform" (usa laser_likelihood_max_dist para limitar qual é a distancia minima estre obstáculos, distancia maiores que esse valor não são calculadas durante o distance transform).
+      # Passo 2: Cálculo da Probabilidade em Tempo Real: Agora, para cada partícula (hipótese de pose), o AMCL faz o seguinte para cada feixe do laser:
+        # Ele pega o ponto final (endpoint) do feixe medido.
+        # Transforma as coordenadas desse ponto para o sistema de coordenadas do mapa, usando a pose da partícula.
+        # Ele simplesmente consulta a distância armazenada na célula correspondente do campo de verossimilhança pré-calculado.
+        # A probabilidade é então calculada a partir dessa distância consultada, geralmente usando uma distribuição Gaussiana. Se a distância até o obstáculo mais próximo for pequena (o ponto final do feixe caiu perto de um obstáculo no mapa), a probabilidade é alta. Se a distância até o obstáculo mais próximo for grande, o endpoint do feixe entá no "meio do nada", a probabilidade é baixa.
+
+    laser_max_range: 20.0         # -1.0         # [double, default: 100.0] Alcance máximo do laser a ser considerado. -1.0 usa o alcance máximo do próprio sensor.
+    laser_min_range: -1.0                  # [double, default: -1.0] Alcance mínimo. -1.0 usa o alcance máximo do próprio sensor.
+
+    max_beams: 1000                         # [int, default: 60] Número máximo de raios do laser a serem usados em cada atualização. Reduzir pode melhorar o desempenho.
+    
+    # -------- Estes parâmetros são usados uma vez, quando o AMCL recebe o mapa pela primeira vez, para pré-calcular o grid do campo de verossimilhança.--------
+    # O Algoritmo "Distance Transform": É aqui que entra o pré-cálculo. Quando o AMCL carrega o mapa pela primeira vez, ele cria um grid interno (o "campo de verossimilhança") e executa um algoritmo chamado Distance Transform.
+    #   1. Inicialização: O algoritmo começa com o mapa de ocupação. Todas as células que são obstáculos recebem um valor de distância 0. Todas as outras células (espaço livre e desconhecido) recebem um valor de infinito.
+    #   2. Propagação: O algoritmo então "propaga" as distâncias para fora a partir dos obstáculos. Ele percorre o mapa e, para cada célula livre, calcula sua distância até seus vizinhos que já têm uma distância calculada. Ele se atualiza com a menor distância possível. Esse processo se repete até que todas as células livres tenham um valor de distância estável. O resultado é um mapa onde cada célula contém o valor da sua distância euclidiana até o obstáculo mais próximo.
+    # O Papel do laser_likelihood_max_dist: Fazer a "Distance Transform" para um mapa inteiro pode ser computacionalmente caro, especialmente para mapas grandes. Se um ponto está a mais de alguns metros de um obstáculo, sua probabilidade já é tão baixa que não faz diferença se a distância exata é 10 ou 11 metros. É aqui que o laser_likelihood_max_dist entra como uma otimização crucial: laser_likelihood_max_dist define um "horizonte" ou um "corte" para o algoritmo de Distance Transform. O algoritmo só calculará as distâncias até este limite máximo.
+    laser_likelihood_max_dist: 0.3         # [double, default: 2.0] Maximum distance to do obstacle inflation on map, for use in likelihood_field model. Ele define a distância máxima a partir de um obstáculo que será considerada no cálculo do campo de verossimilhança (distance transform).
+    # Intuição: Qualquer célula no mapa que esteja a uma distância maior que laser_likelihood_max_dist de qualquer obstáculo receberá uma probabilidade muito baixa (ou zero). Essencialmente, ele cria uma "aura" ou "brilho" com este raio ao redor de todos os obstáculos no mapa
+    # Valor maior: Cria uma "aura" maior. Isso é útil em ambientes abertos ou com poucos detalhes, pois permite que o AMCL use leituras de laser que estão mais distantes das paredes para se localizar. A desvantagem é que aumenta o custo computacional do pré-cálculo.
+    # Valor menor: Cria uma "aura" mais estreita. Isso é bom para ambientes densos como corredores, onde você só quer considerar as paredes mais próximas. Um valor muito pequeno pode fazer com que o robô se perca facilmente em áreas abertas.
+
+    # É uma forma de rejeição de outliers (leituras anômalas) e funciona apenas no modo likelihood_field. Os feixes ignorados não são usados ​​no cálculo da probabilidade da observação dado o mapa p(z|m), que é usado como peso de cada partícula. Portanto, as partículas corretas não têm seu peso reduzido devido a obstáculos inesperados.
+    # O objetivo deste mecanismo é lidar com obstáculos dinâmicos não mapeados (como uma pessoa andando na frente do robô) ou leituras de sensor espúrias (como reflexos).
+    # O Conceito -> Consenso das Partículas: Para cada feixe do laser, o AMCL primeiro verifica o que a maioria das partículas espera ver naquela direção. Ele faz um raycasting a partir da pose de cada partícula para encontrar a distância esperada até um obstáculo no mapa.
+    #   * Comparação: Ele então compara a medição real do laser (d_medida) com a distribuição de distâncias esperadas pela nuvem de partículas.
+    #   * Decisão de Pular: Se a medição real do laser for muito diferente do que a maioria das partículas esperava, esse feixe é considerado um outlier (uma anomalia) e é ignorado (pulado) durante o cálculo do peso das partículas.
+    # A ideia é: "Se 95% das minhas hipóteses (partículas) dizem que deveria haver uma parede a 5 metros, mas o laser mediu 1 metro, essa medição de 1 metro provavelmente é uma pessoa na frente do robô e não deve ser usada para corrigir minha pose, pois me puxaria para longe da parede real.
+    do_beamskip: false  # [bool, default: false] true para ativar este mecanismo de rejeição de outliers.
+    beam_skip_distance: 1.0 # [double, default: 0.5]  este parâmetro define a distância máxima entre a medição real e a medição esperada pelo consenso das partículas para que um feixe seja considerado "em acordo". Se a diferença for maior que beam_skip_distance, o feixe é um candidato a ser pulado.
+    # Exemplo: Se o consenso das partículas espera uma parede a 5.0m e beam_skip_distance é 0.5m, uma medição real entre 4.5m e 5.5m é considerada "em acordo". Uma medição de 2.0m "discorda".
+    
+    beam_skip_error_threshold: 0.95  # [double, default: 0.9] Este é o mecanismo de segurança global. Após a primeira passagem (onde os feixes que discordam são pulados), o AMCL calcula o peso das partículas usando os feixes restantes. Se, mesmo com os feixes "bons", a confiança geral ainda for baixa (indicando má convergência), este parâmetro entra em ação.
+    # Comportamento: Se a porcentagem de feixes que não correspondem ao mapa (mesmo após o "skip") exceder beam_skip_error_threshold, o AMCL descarta o resultado e força uma atualização completa usando TODOS os feixes originais, ignorando o mecanismo de "beam skip" para esta atualização.
+    # Intuição: "Eu tentei ser inteligente e ignorar os outliers, mas o resultado ainda foi ruim. Minha suposição sobre o que era um outlier estava provavelmente errada. Vou tentar de novo, desta vez usando toda a informação que tenho."
+
+
+    beam_skip_threshold: 0.3  # [double, default: 0.3] define a porcentagem mínima de partículas que devem concordar sobre a distância esperada para que o mecanismo de "beam skip" seja acionado para aquele feixe.
+    # Exemplo: Se beam_skip_threshold é 0.3 (ou seja, 30%), o AMCL só tentará pular um feixe se pelo menos 30% de todas as partículas concordarem sobre qual deveria ser a distância medida. Se a própria nuvem de partículas estiver muito dispersa (baixa confiança), este limiar não será atingido, e o feixe não será pulado, como uma medida de segurança.
+    
+
+    # -------- Parâmetros de Ponderação (para avaliar a probabilidade de usar aquele feixe de laser nos calculos) --------
+    # O metodo beam usa z_hit, z_rand, z_max e z_short. A probabilidade final de uma única medição z (método beam) é uma soma ponderada:  p(z) = z_hit * p_hit(z) + z_short * p_short(z) + z_max * p_max(z) + z_rand * p_rand(z)
+    # O metodo likelihood_field usa apenas z_hit e z_rand.  Prob_final = z_hit * Prob_hit + z_rand * Prob_rand
+    z_hit: 0.95    # [double, default: 0.5] para likelihood: é o peso ou a importância dada à probabilidade calculada pelo campo de verossimilhança (o "acerto" ou "hit"). Para Beam: Representa a probabilidade de que uma leitura de laser tenha de fato atingido um obstáculo que está no mapa
+    # Intuição: Ele faz parte de um modelo misto. A probabilidade final de uma leitura de feixe do laser é uma combinação ponderada da probabilidade de ser um "acerto" (calculada com sigma_hit) e a probabilidade de ser uma "leitura aleatória" (z_rand).
+    # Ajuste: Um valor alto (próximo de 1.0) significa que você confia muito no seu sensor e no seu mapa, e acredita que a maioria das leituras são acertos válidos. Um valor mais baixo dá mais peso à possibilidade de leituras aleatórias e sem sentido. Geralmente, um valor entre 0.8 e 0.95 é um bom ponto de partida.
+    # Este é geralmente o maior peso. Se você confia muito no seu sensor e no seu mapa, pode mantê-lo alto (ex: 0.95). Se o seu ambiente tem muitos obstáculos dinâmicos não mapeados, você pode precisar diminuí-lo um pouco para dar mais peso às outras distribuições.
+
+    z_rand: 0.3 #[double, default: 0.5] O peso da distribuição "aleatória" (Rand). Representa a probabilidade de uma leitura ser completamente aleatória e sem sentido, como um reflexo de um espelho, interferência, pessoas passando. Isso é modelado como uma distribuição uniforme em toda a faixa do sensor.
+    # Intuição: Representa a chance de o laser detectar algo que não tem nada a ver com o mapa (reflexos, pessoas passando, etc.).
+    # Este é o "fator de segurança" do modelo. Um valor pequeno, mas não nulo, garante que o AMCL nunca fique 100% certo de sua pose, o que o ajuda a se recuperar de erros. Se o seu ambiente tem muitas superfícies reflexivas (vidro, metal polido), você pode precisar aumentar este valor 
+
+    z_max: 0.05 #[double, default: 0.05] A probabilidade do feixe não ter capturado nenhum obstáculo e retornado seu alcance máximo, mesmo que no mapa estático houvesse um obstáculo mais perto. Isso é modelado como um pequeno pico de probabilidade na distância máxima do sensor.
+    # Este valor geralmente é mantido pequeno. Ele só é relevante se o seu sensor tem uma tendência conhecida de falhar dessa maneira.
+
+    z_short: 0.05 # [double, default: 0.005] Para o modelo Representa a probabilidade de a leitura de um feixe ter sido causada por um obstáculo inesperado (não mapeado) que está mais perto do que o obstáculo no mapa estático. Isso é modelado como uma distribuição exponencial decrescente.
+    # Para o modelo beam: É o parâmetro da distribuição exponencial usada para modelar os "acertos curtos" (p_short).
+    # Se o seu ambiente é muito dinâmico, com muitos objetos se movendo, aumentar um pouco este valor pode ajudar o AMCL a não descartar poses que parecem "ruins" apenas porque um obstáculo temporário apareceu.
+    
+
+    # ----- Parâmetros de Forma das Distribuições (Usam o Campo para Avaliar as Partículas) -----
+    # Estes parâmetros controlam a forma matemática de cada uma das distribuições de probabilidade.
+    sigma_hit: 0.1    # [double, default: 0.2] O Controlador da "Precisão do Acerto" (z_hit). Este parâmetro é usado em ambos os modelos (likelihood_field e beam), mas seu papel é o mesmo: ele define o ruído esperado do sensor para um "acerto" (hit) válido.
+    # É o desvio padrão (σ) de uma distribuição Gaussiana (a curva em forma de sino).
+    # A probabilidade de um "acerto" é calculada com base na diferença entre a distância medida pelo laser (d_medida) и a distância esperada do mapa (d_esperada). -> Prob_hit ~ exp( - (d_medida - d_esperada)² / (2 * sigma_hit²) )
+    # Valor menor (ex: 0.1): Cria uma curva Gaussiana "pontuda". Isso significa que o AMCL será muito exigente. Apenas as leituras de feixe laser que caem muito perto de um obstáculo no mapa receberão uma alta probabilidade. Isso leva a uma localização mais precisa, mas também torna o filtro mais "frágil" e suscetível a se perder se o mapa ou os sensores não forem perfeitos.
+    # Valor maior (ex: 0.5): Cria uma curva Gaussiana "larga". O AMCL será mais tolerante. Leituras de laser que caem um pouco longe de um obstáculo ainda receberão uma probabilidade razoável. Isso torna a localização mais robusta e menos propensa a se perder, mas pode resultar em uma pose estimada um pouco menos precisa (a nuvem de partículas será mais dispersa).
+
+    lambda_short: 0.1   # [double, default: 0.1] (usado apenas no modelo beam) lambda_short (λ) é o parâmetro de uma distribuição exponencial. Esta distribuição modela a probabilidade de um feixe de laser ter atingido um obstáculo inesperado (não mapeado), como uma pessoa ou uma cadeira, que está mais perto do que a parede mapeada.
+    # A probabilidade de um "acerto curto" (p_short) é alta para distâncias medidas muito pequenas e decai exponencialmente à medida que a distância medida aumenta. -> p_short ~ lambda_short * exp( -lambda_short * d_medida )
+    # lambda_short PEQUENO (ex: 0.05): Curva Exponencial Decai lentamente.
+    #   * Comportamento do AMCL: O algoritmo considera que é razoavelmente provável encontrar um obstáculo inesperado a uma distância considerável. Ele não penaliza tanto as leituras "curtas".
+    #   * Quando usar: Pode ser útil se você espera obstáculos dinâmicos a grandes ou se o seu sensor é propenso a leituras curtas espúrias.
+    # lambda_short GRANDE (ex: 0.5): Curva Exponencial Decai rapidamente.
+    #   * Comportamento do AMCL: O algoritmo acredita que os obstáculos inesperados geralmente estão muito, muito perto do robô. Uma leitura "curta" a 2 metros de distância, quando a parede está a 5 metros, será considerada muito improvável de ser um obstáculo dinâmico.
+    #   * Quando usar: Este é o cenário mais comum. Geralmente, assume-se que os obstáculos dinâmicos são detectados quando estão próximos.
+    
+    # --- Parâmetros do Filtro de Partículas ---
+    max_particles: 2000                    # [int, default: 2000] Número máximo de partículas (hipóteses de pose).
+    min_particles: 800                     # [int, default: 500] Número mínimo de partículas.
+    resample_interval: 1                   # [int, default: 1] Número de atualizações do filtro antes de reamostrar as partículas.
+    update_min_a: 0.017                     # [double, default: 0.2] Rotação mínima (radianos) para acionar uma atualização do filtro.
+    update_min_d: 0.01                     # [double, default: 0.25] Translação mínima (metros) para acionar uma atualização do filtro.
+    
+    # --- Outros ---
+    tf_broadcast: true                     # [bool, default: true] Se o AMCL deve publicar a transformada de 'map' para 'odom'. Essencial para o sistema funcionar.
+    transform_tolerance: 0.8               # [double, default: 0.1] Tolerância de tempo para transformadas. "TF2, por favor, me dê a transformada entre odom e base_footprint para o timestamp exato de 12345.6789 segundos."
+
+    
+    # filtro de recuperação de falha de localização
+    # O AMCL usa o "peso médio" de todas as suas partículas como um indicador de quão bem a nuvem de partículas atual corresponde às leituras do sensor.
+    #   * Peso médio alto: As partículas estão bem agrupadas em uma pose que "explica" bem as leituras do sensor. O AMCL está confiante.
+    #   * Peso médio baixo: Nenhuma das partículas (hipóteses de pose) consegue explicar bem as leituras do sensor. Isso sugere que a pose real do robô provavelmente está longe de qualquer uma das partículas. O AMCL está "perdido".
+    # o AMCL mantém duas médias móveis exponenciais do peso médio das partículas, em vez de apenas uma:
+    #   * Média de Longo Prazo (w_slow): Uma média que se move muito lentamente e representa a qualidade geral da localização ao longo do tempo. age como a "memória" de longo prazo do filtro
+    #   * Média de Curto Prazo (w_fast): Uma média que se move rapidamente e reflete a qualidade da localização nas últimas poucas atualizações. age como a "memória" de curto prazo do filtro
+    # O mecanismo de recuperação é acionado quando a qualidade da localização de curto prazo é muito pior do que a qualidade de longo prazo. A lógica é: "Eu costumava estar bem localizado (w_slow está alto), mas agora estou muito mal localizado (w_fast está baixo). Portanto, eu provavelmente fui 'sequestrado' ou me perdi."
+    # Quando esta condição é verdadeira, o AMCL começa a adicionar partículas aleatórias em todo o mapa a cada atualização.
+    recovery_alpha_slow: 0.0               # [double, default: 0.0] 
+    recovery_alpha_fast: 0.0               # [double, default: 0.0]
+    
+    # --- Pose Inicial ---
+    always_reset_initial_pose: false       # [bool, default: false] Se definido como true, toda vez que o nó AMCL transitar do estado inactive para o estado active, ele descartará sua localização atual e se reinicializará na pose especificada pelos parâmetros initial_pose.
+    
+    first_map_only: false                  # [bool, default: false] Se definido como true, o AMCL (espalhamento da nuvem de particulas) se inicializará com o primeiro mapa que receber no tópico /map, mas ignorará todos os mapas subsequentes que forem publicados nesse mesmo tópico.
+    # false: Por algum motivo (ex: o robô se move para um andar diferente, ou um operador carrega um novo mapa), o map_server (ou outro nó) publica um novo mapa, mapa_B.yaml, no mesmo tópico /map. Como first_map_only é false, o AMCL detecta a chegada de um novo mapa. Ele interpreta isso como uma mudança fundamental no ambiente.
+    # O AMCL se reinicializa completamente. Ele descarta sua localização atual, descarta o mapa_A, e reinicializa seu filtro de partículas do zero dentro do novo mapa_B (geralmente na initial_pose se set_initial_pose for true).
+
+    set_initial_pose: true                 # [bool, default: false] Se true, usa os valores de 'initial_pose' abaixo para inicializar o filtro.
+    initial_pose:                          # [struct] A pose inicial (x, y, yaw) para o filtro de partículas.
+      x: -31.597925
+      y: 9.167661
+      z: 0.0
+      yaw: -1.7000761
+      # x: -30.389490
+      # y: 5.822581
+      # z: 0.0
+      # yaw: -2.1    # -2.1   3.0
+      # x: 10.957655906677246   # -30.389490
+      # y: 1.3515340089797974   # 5.822581
+      # z: 0.0
+      # yaw: 1.2     # -2.1   3.0
+    
+    # controla o nível de informação que os serviços e ações do nó fornecem sobre seu estado interno.
+    # O ROS 2 introduziu um conceito poderoso chamado "Introspecção de Serviço/Ação", que permite que um cliente (como uma ferramenta de linha de comando ou um painel de controle) obtenha informações detalhadas sobre o estado de um servidor sem ter que se inscrever em múltiplos tópicos.
+    introspection_mode: "disabled"      # [string, default: disabled]  
+    # 1."disabled" (Padrão): Funcionalidade: Este é o modo de operação normal e mais eficiente.
+    #   * Comportamento: Os serviços e ações do AMCL (como o serviço para solicitar a reinicialização do filtro) se comportam de forma padrão. Eles aceitam requisições e retornam respostas, mas não fornecem nenhuma informação extra sobre o estado interno do nó.
+    # 2."metadata": Funcionalidade: Modo de depuração de nível médio.
+    #   * Comportamento: Quando este modo está ativo, os servidores de serviço e ação do AMCL anexam metadados às suas respostas. Esses metadados podem incluir informações como:
+    #       * O timestamp de quando a requisição foi recebida.
+    #       * O tempo que o servidor levou para processar a requisição.
+    #       * O ID do cliente que fez a chamada.
+    # 3."contents" Funcionalidade: Modo de depuração de mais alto nível.
+    #   * Comportamento: Este modo inclui todos os "metadata" e, adicionalmente, anexa o conteúdo do estado interno do servidor à resposta. Para o AMCL, isso poderia significar que uma chamada de serviço poderia retornar, junto com sua resposta normal, uma "cópia" da nuvem de partículas atual ou o estado do modelo de sensor no momento da chamada.
+    #       * Caso de Uso: Este é o modo mais poderoso para depuração, pois permite que uma ferramenta externa "tire uma foto" do estado exato do AMCL em um momento específico, sem a necessidade de configurar e sincronizar a assinatura de múltiplos tópicos de depuração. É o sucessor espiritual da publicação de tópicos de introspecção.
+
+    save_pose_rate: -1.0  # [double, default: 0.5] Define a frequência (em segundos) com que o AMCL salvará sua última pose estimada em um arquivo. Um valor negativo (como o padrão -1.0) desativa completamente este recurso.
+    
+    # A Probabilidade de um Erro de Propagação, estão ligados ao modelo de sensor beam, mas podem ter uma influência residual em outros cálculos.
+    # Pense no AMCL como um ciclo de duas etapas:
+    #   1.Previsão (Prediction): O AMCL usa a odometria para mover todas as partículas para onde elas deveriam estar. (w_slow = w_slow + recovery_alpha_slow * (peso_medio_atual - w_slow))
+    #   2.Atualização (Update): O AMCL usa a leitura do laser para avaliar o quão "boas" são as novas posições das partículas e recalcula seus pesos.
+    pf_err: 0.01    # [double, default: 0.05] Este parâmetro representa a probabilidade intrínseca de que o modelo de movimento do robô esteja completamente errado. O pf_err entra na etapa de Previsão. Ele introduz uma pequena, mas constante, chance de que a odometria esteja tão errada que a partícula poderia, na verdade, estar em qualquer outro lugar.
+    # Como é usado? Ele é combinado com a probabilidade calculada pelo modelo de movimento. A ideia é que, mesmo que o modelo de movimento diga que é 100% provável que a partícula tenha se movido de A para B, o pf_err adiciona uma "cauda" uniforme à distribuição, dizendo que há uma pequena chance (pf_err) de ela ter ido para um lugar completamente aleatório.
+    # Efeito Prático: É um mecanismo de regularização. Ele age de forma semelhante ao z_rand (no modelo de sensor), mas no lado do modelo de movimento. Ele impede que o filtro fique excessivamente confiante em sua odometria. Ao garantir que sempre haja uma minúscula probabilidade de a partícula estar em outro lugar, ele ajuda o filtro a não descartar completamente regiões do mapa que poderiam se tornar relevantes se a odometria falhar catastroficamente.
+    # Ajuste: Este é um parâmetro de ajuste fino. O valor padrão (0.05) é geralmente seguro. Aumentá-lo significa que você confia menos na sua odometria. Diminuí-lo significa que você confia mais. Na prática, é muito mais eficaz e intuitivo ajustar os parâmetros alpha do modelo de movimento do que mexer no pf_err.
+    pf_z: 0.99      # [double, default: 0.99] A Influência do Erro de Medição. Este parâmetro é um fator de ponderação que mistura a probabilidade calculada pelo modelo de sensor com uma distribuição uniforme. Ele está diretamente ligado ao pf_err. Este parâmetro atua na etapa de Atualização, quando os pesos das partículas são calculados a partir das leituras do laser.
+    # O peso final de uma partícula não é apenas a probabilidade calculada pelo modelo de sensor (p_sensor). Ele é misturado com uma distribuição uniforme usando pf_z e pf_err. A fórmula conceitual é algo como: Peso_final = pf_z * p_sensor + pf_err * (1 / N). Onde N é o número de locais possíveis.
+    # Efeito Prático: 
+    #   * Se pf_z for 1.0, o peso da partícula é determinado inteiramente pela leitura do sensor.
+    #   * Se pf_z for menor que 1.0 (ex: o padrão 0.99), ele "rouba" um pouco da influência do sensor e a redistribui uniformemente, como um "imposto de incerteza".
+    #   * Ele funciona em conjunto com pf_err para garantir que nenhuma partícula receba um peso de exatamente zero, o que poderia levar ao colapso do filtro se todas as partículas acabassem em locais ruins.
+    # Ajuste: Assim como o pf_err, este é um parâmetro de baixo nível. Manter em 0.99 é quase sempre a melhor abordagem. Reduzir este valor significa que você está diminuindo artificialmente a confiança nas suas medições de sensor, o que raramente é desejável. É mais eficaz ajustar os parâmetros do próprio modelo de sensor (como sigma_hit e os z_*) para controlar a confiança.
+  
+planner_server:
+  # Função: Servidor responsável por criar um plano global (um caminho) do ponto inicial do robô até o alvo final. 
+  # Ele usa o global_costmap para encontrar o caminho mais curto que evita obstáculos conhecidos.
+  ros__parameters:
+    use_sim_time: false
+    expected_planner_frequency: 10.0       # [double, default: -1.0] Frequência esperada de planejamento. -1.0 para sob demanda.
+    planner_plugins: ["GridBased"]         # [vector<string>] Lista de plugins de planejamento disponíveis.
+    costmap_update_timeout: 0.5            # [double, default: 0.1] Tempo para esperar por uma atualização do costmap.
+
+    # GridBased:
+    #   # Plugin que implementa um planejador global. Aqui, um planejador customizado.
+    #   # plugin: "waypoint_global_planner::WaypointGlobalPlanner"
+    #   # epsilon: 0.5
+    #   # waypoints_per_meter: 20
+    #   # Exemplo de alternativa comum:
+    #   plugin: "nav2_navfn_planner::NavfnPlanner" # [string] Implementa o algoritmo A* ou Dijkstra.
+    #   tolerance: 0.5                           # [double] Tolerância para o planejador.
+    #   use_astar: false                         # [bool] Se false, usa Dijkstra. Se true, usa A*.
+    
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: false
+      allow_unknown: false
+
+# route_server:
+#   ros__parameters:
+#     # The graph_filepath does not need to be specified since it going to be set by defaults in launch.
+#     # If you'd rather set it in the yaml, remove the default "graph" value in the launch file(s).
+#     # file & provide full path to map below. If graph config or launch default is provided, it is used
+#     graph_filepath: $(find-pkg-share nav2_route)/graphs/dentalmed_final.json
+#     boundary_radius_to_achieve_node: 1.0
+#     radius_to_achieve_node: 2.0
+#     smooth_corners: true
+#     operations: ["AdjustSpeedLimit", "ReroutingService", "CollisionMonitor"]
+#     ReroutingService:
+#       plugin: "nav2_route::ReroutingService"
+#     AdjustSpeedLimit:
+#       plugin: "nav2_route::AdjustSpeedLimit"
+#     CollisionMonitor:
+#       plugin: "nav2_route::CollisionMonitor"
+#       max_collision_dist: 3.0
+#     edge_cost_functions: ["DistanceScorer", "CostmapScorer"]
+#     DistanceScorer:
+#       plugin: "nav2_route::DistanceScorer"
+#     CostmapScorer:
+#       plugin: "nav2_route::CostmapScorer"
+
+# smoother_server:
+#   # Função: Opcional. Pega o caminho "quadriculado" e com quinas gerado pelo planejador global e o suaviza, 
+#   # criando uma curva mais natural e fácil para o robô seguir.
+#   ros__parameters:
+#     use_sim_time: false
+#     smoother_plugins: ["simple_smoother"]  # [vector<string>] Lista de plugins de suavização.
+#     simple_smoother:
+#       plugin: "nav2_smoother::SimpleSmoother" # [string] Um suavizador simples baseado em otimização.
+#       tolerance: 1.0e-10                 # [double] Tolerância para a otimização.
+#       max_its: 1000                        # [int] Número máximo de iterações.
+#       do_refinement: True                  # [bool] Realiza um passo de refinamento adicional.
+
+smoother_server:
+  ros__parameters:
+    smoother_plugins: ["savitzky_golay_smoother"]
+    savitzky_golay_smoother:
+      plugin: "nav2_smoother::SavitzkyGolaySmoother"
+      do_refinement: true 
+      keep_start_orientation: true
+
+behavior_server:
+  # Função: Servidor que executa comportamentos de recuperação de falhas. Quando o bt_navigator detecta que a navegação falhou (ex: o robô está preso), 
+  # ele pode chamar este servidor para executar uma ação como "girar no lugar" (spin) ou "dar ré" (backup) para tentar se livrar do problema.
+  ros__parameters:
+    # --- Frequência e Tópicos ---
+    cycle_frequency: 10.0                # [double, default: 10.0] Frequência de execução do servidor.
+    local_costmap_topic: local_costmap/costmap_raw # [string]
+    global_costmap_topic: global_costmap/costmap_raw # [string]
+    local_footprint_topic: local_costmap/published_footprint # [string]
+    global_footprint_topic: global_costmap/published_footprint # [string]
+
+    # --- Seleção de Plugins de Comportamento ---
+    behavior_plugins: ["backup", "drive_on_heading", "assisted_teleop", "wait"] # [vector<string>] Lista de comportamentos disponíveis.
+    backup:
+      plugin: "nav2_behaviors::BackUp"     # [string] Move o robô para trás por uma distância fixa.
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading" # [string] Move o robô em uma direção específica.
+    wait:
+      plugin: "nav2_behaviors::Wait"       # [string] Para o robô por um tempo.
+    assisted_teleop:
+      plugin: "nav2_behaviors::AssistedTeleop" # [string] Permite teleoperação que evita obstáculos.
+
+    # --- Parâmetros Gerais de Comportamento ---
+    local_frame: odom                      # [string, default: "odom"]
+    global_frame: map                      # [string, default: "map"]
+    robot_base_frame: base_footprint       # [string, default: "base_link"]
+    transform_tolerance: 0.3               # [double, default: 0.1]
+    simulate_ahead_time: 2.0               # [double, default: 2.0] Tempo para simular à frente para verificação de colisão.
+    max_rotational_vel: 0.1                # [double, default: 1.0] Velocidade rotacional máxima para os comportamentos.
+    min_rotational_vel: 0.06                # [double, default: 0.4]
+    rotational_acc_lim: 0.3                # [double, default: 3.2]
+    enable_stamped_cmd_vel: false          # [bool, default: false]
+
+
+robot_state_publisher:
+  # Função: Lê o estado das juntas do robô (do tópico /joint_states) 
+  # e a descrição do robô (URDF, do tópico /robot_description) e calcula e 
+  # publica as transformadas (TF2) entre todos os links do robô (ex: de base_link para wheel_link).
+  ros__parameters:
+    use_sim_time: false                  # [bool, default: false]
+
+waypoint_follower:
+  # Função: Permite que o robô siga uma sequência de waypoints (pontos de passagem), chamando a ação navigate_to_pose para cada um deles.
+  ros__parameters:
+    use_sim_time: false
+    loop_rate: 10                        # [int, default: 20] Frequência em Hz do loop principal.
+    stop_on_failure: false               # [bool, default: true] Se deve parar tudo se a navegação para um waypoint falhar.
+    waypoint_task_executor_plugin: "wait_at_waypoint" # [string] Plugin para executar uma tarefa em cada waypoint.
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint" # [string] Plugin que faz o robô esperar em um waypoint.
+      enabled: True                      # [bool, default: true]
+      waypoint_pause_duration: 200       # [int, default: 0] Tempo em segundos para pausar em cada waypoint.
+
+
+velocity_smoother:
+  # Função: Atua como um intermediário entre os comandos de velocidade gerados pelo controlador e o driver do robô. 
+  # Ele garante que os comandos de velocidade respeitem os limites de aceleração e desaceleração do robô, resultando em um movimento mais suave e seguro.
+  ros__parameters:
+    smoothing_frequency: 20.0            # [double, default: 20.0] Frequência de operação.
+    scale_velocities: false              #  (bool, default: false) Se um limite de aceleração é atingido em um eixo (ex: vx), este parâmetro decide como tratar os outros eixos (vtheta).
+    # false (padrão): Apenas o eixo que violou o limite é "cortado". Os outros eixos mantêm seus valores.
+    # true: Todos os eixos são escalados proporcionalmente. Se vx precisa ser reduzido em 20%, vtheta também será reduzido em 20%. Isso tenta manter a "direção" do comando original, mesmo que signifique desviar ligeiramente da trajetória.
+   
+    feedback: "OPEN_LOOP"                #  (string, default: "OPEN_LOOP") Define a fonte para a "velocidade atual" do robô.
+    # "OPEN_LOOP": Assume que a velocidade atual é o último comando que ele enviou. É uma boa aproximação se os limites de aceleração estiverem bem configurados.
+    # "CLOSED_LOOP": Usa a odometria real do robô (do odom_topic) para saber a velocidade atual. Requer uma odometria de alta frequência e baixa latência.
+    
+    # --- Limites Cinemáticos ---
+    max_velocity: [0.5, 0.0, 0.5]       # (vector<double>, default: [0.5, 0.0, 2.5]) Velocidades máximas [vx, vy, vtheta] em m/s e rad/s.
+    min_velocity: [0.0, 0.0, -0.5]    # (vector<double>, default: [-0.5, 0.0, -2.5]) Velocidades mínimas (negativas para ré). A documentação corretamente aponta que a velocidade angular negativa (-vtheta) corresponde a uma curva para a direita.
+    max_accel: [0.15, 0.0, 0.2]           # (vector<double>, default: [2.5, 0.0, 3.2]) Acelerações máximas [ax, ay, atheta] em m/s² e rad/s².
+    max_decel: [-0.25, 0.0, -0.9]         # (vector<double>, default: [-2.5, 0.0, -3.2]) Desacelerações máximas (devem ser negativas).
+
+    # --- Tópicos e Timeouts ---
+    odom_topic: "/odom"                  # [string, default: "odom"]
+    odom_duration: 0.1                   # (double, default: 0.1 s) Janela de tempo para calcular a velocidade a partir das mensagens de odometria no modo CLOSED_LOOP.
+    velocity_timeout: 1.0                # (double, default: 1.0 s) "Disjuntor de segurança". Se nenhum novo comando for recebido neste período, ele para o robô publicando um comando de velocidade zero.
+    
+    deadband_velocity: [0.015, 0.0, 0.06]   # (vector<double>, default: [0.0, 0.0, 0.0]) A "zona morta". Comandos de velocidade com valor absoluto menor que estes serão tratados como zero. Isso evita enviar comandos "residuais" para o hardware que poderiam causar ruído ou superaquecimento dos motores ao tentar atingir uma velocidade impossível (stall torque).
+    enable_stamped_cmd_vel: false        # (bool, default: true a partir do Kilted, false no Jazzy e anteriores) Define o tipo de mensagem de saída.
+    # * true: Publica geometry_msgs/msg/TwistStamped (com timestamp).
+    # * false: Publica geometry_msgs/msg/Twist (sem timestamp).
+    # Nota Importante: A documentação destaca uma mudança crucial entre as versões do ROS 2. No Jazzy, o padrão é false. Em versões mais novas, o padrão é true. É importante garantir que o seu driver de robô espera o tipo de mensagem correto.
+
+    bond_heartbeat_period: 0.1  # (double, default: 0.1 s) Período do "heartbeat" do mecanismo de bond do ciclo de vida, que verifica se o nó ainda está vivo. 0.0 ou menos desativa.
+
+collision_monitor:
+  ros__parameters:
+    enabled: True
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 0.5
+    source_timeout: 5.0
+    base_shift_correction: True
+    stop_pub_timeout: 2.0
+    enable_stamped_cmd_vel: False
+    use_realtime_priority: false
+
+    polygons: ["PolygonStop"]
+
+    PolygonStop:
+      type: "polygon"
+      action_type: "stop"
+      enabled: True
+      visualize: True
+      polygon_pub_topic: "polygon_stop"
+
+      # Retângulo de colisão a frente
+      points: "[[0.85, -0.35], [1.05, -0.35], [1.05,  0.35], [0.85,  0.35]]"
+
+    observation_sources: ["scan"]
+    scan:
+      source_timeout: 0.2
+      type: "scan"
+      topic: "/scan"
+      enabled: True

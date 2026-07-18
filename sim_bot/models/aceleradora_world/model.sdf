@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="aceleradora_world">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+
+    <link name="link">
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://aceleradora_world/meshes/aceleradora.stl</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </collision>
+
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://aceleradora_world/meshes/aceleradora.stl</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+
+        <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.8 0.8 0.8 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

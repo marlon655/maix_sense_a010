@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
+    <!-- Camera's urdf - C720-like (78 deg diagonal FOV, 1280x720 @ 30 fps)
+         Positioned at the same frontal line as the LiDAR (chassis origin X),
+         centred in Y, 4 cm above chassis. -->
+    <joint name="camera_joint" type="fixed">
+        <parent link="chassis"/>
+        <child link="camera_link"/>
+        <!-- X: same as lidar (chassis X = 0)
+             Y: -0.075 -> robot frame Y = 0.05 + (-0.075) = -0.025 m (2.5 cm right of centre)
+             Z: 0.09 -> align camera with ArUco marker height -->
+        <origin xyz="0 -0.075 0.09" rpy="0 0 0"/>
+    </joint>
+    <link name="camera_link">
+        <visual>
+            <!-- Approximates a small USB webcam body -->
+            <geometry>
+                <box size="0.012 0.075 0.025"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+    </link>
+
+    <!-- Standard ROS camera optical frame
+         Rotates from robot convention (X fwd, Y left, Z up)
+         to optical convention (X right, Y down, Z fwd).
+         Required for correct TF2 transforms of ArUco poses. -->
+    <joint name="camera_optical_joint" type="fixed">
+        <parent link="camera_link"/>
+        <child link="camera_link_optical"/>
+        <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+    <link name="camera_link_optical"/>
+
+    <!-- Camera Gazebo Sensor Plugin - Logitech C720-like -->
+    <gazebo reference="camera_link">
+        <material>Gazebo/Black</material>
+
+        <sensor name="camera" type="camera">
+            <pose> 0 0 0 0 0 0 </pose>
+            <always_on>true</always_on>
+            <visualize>true</visualize>
+            <update_rate>30</update_rate>
+            <topic>camera/image</topic>
+            <gz_frame_id>camera_link_optical</gz_frame_id>
+            <camera>
+                <camera_info_topic>camera/camera_info</camera_info_topic>
+                <!-- C720: ~78 deg diagonal ~= 1.20 rad horizontal FOV at 16:9 -->
+                <horizontal_fov>1.20</horizontal_fov>
+                <image>
+                    <format>R8G8B8</format>
+                    <width>1280</width>
+                    <height>720</height>
+                </image>
+                <clip>
+                    <near>0.05</near>
+                    <far>10.0</far>
+                </clip>
+            </camera>
+        </sensor>
+    </gazebo>
+
+</robot>
