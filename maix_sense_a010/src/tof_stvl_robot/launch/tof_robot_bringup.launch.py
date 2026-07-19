@@ -41,6 +41,8 @@ def generate_launch_description():
     publish_terrain_debug = LaunchConfiguration('publish_terrain_debug')
     terrain_min_points_per_cell = LaunchConfiguration(
         'terrain_min_points_per_cell')
+    terrain_min_reliable_points_per_cell = LaunchConfiguration(
+        'terrain_min_reliable_points_per_cell')
     terrain_seed_x_min = LaunchConfiguration('terrain_seed_x_min')
     terrain_seed_x_max = LaunchConfiguration('terrain_seed_x_max')
     terrain_seed_half_width = LaunchConfiguration('terrain_seed_half_width')
@@ -48,6 +50,16 @@ def generate_launch_description():
         'terrain_seed_height_tolerance')
     terrain_slope_noise_tolerance = LaunchConfiguration(
         'terrain_slope_noise_tolerance')
+    terrain_transition_enabled = LaunchConfiguration(
+        'terrain_transition_enabled')
+    terrain_transition_max_length = LaunchConfiguration(
+        'terrain_transition_max_length')
+    terrain_transition_min_forward_cells = LaunchConfiguration(
+        'terrain_transition_min_forward_cells')
+    terrain_transition_min_lateral_width = LaunchConfiguration(
+        'terrain_transition_min_lateral_width')
+    terrain_transition_max_plane_residual = LaunchConfiguration(
+        'terrain_transition_max_plane_residual')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -121,6 +133,11 @@ def generate_launch_description():
             description='Minimum points required to build a terrain elevation cell.',
         ),
         DeclareLaunchArgument(
+            'terrain_min_reliable_points_per_cell',
+            default_value='2',
+            description='Minimum points required for a terrain cell to be trusted as seed/support.',
+        ),
+        DeclareLaunchArgument(
             'terrain_seed_x_min',
             default_value='0.20',
             description='Minimum forward distance used to find initial terrain seed cells.',
@@ -144,6 +161,31 @@ def generate_launch_description():
             'terrain_slope_noise_tolerance',
             default_value='0.008',
             description='Extra Z tolerance used when comparing neighboring terrain cells.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_transition_enabled',
+            default_value='true',
+            description='Allow short floor-to-ramp transition recovery when forward terrain support is safe.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_transition_max_length',
+            default_value='0.10',
+            description='Maximum forward length of a recoverable floor-to-ramp transition.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_transition_min_forward_cells',
+            default_value='3',
+            description='Minimum reliable cells ahead required to support transition recovery.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_transition_min_lateral_width',
+            default_value='0.20',
+            description='Minimum lateral support width required to treat a transition as a ramp.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_transition_max_plane_residual',
+            default_value='0.025',
+            description='Maximum residual accepted when fitting the forward ramp support plane.',
         ),
         DeclareLaunchArgument(
             'device',
@@ -243,6 +285,10 @@ def generate_launch_description():
                         terrain_min_points_per_cell,
                         value_type=int,
                     ),
+                    'terrain_min_reliable_points_per_cell': ParameterValue(
+                        terrain_min_reliable_points_per_cell,
+                        value_type=int,
+                    ),
                     'terrain_seed_x_min': ParameterValue(
                         terrain_seed_x_min,
                         value_type=float,
@@ -261,6 +307,26 @@ def generate_launch_description():
                     ),
                     'terrain_slope_noise_tolerance': ParameterValue(
                         terrain_slope_noise_tolerance,
+                        value_type=float,
+                    ),
+                    'terrain_transition_enabled': ParameterValue(
+                        terrain_transition_enabled,
+                        value_type=bool,
+                    ),
+                    'terrain_transition_max_length': ParameterValue(
+                        terrain_transition_max_length,
+                        value_type=float,
+                    ),
+                    'terrain_transition_min_forward_cells': ParameterValue(
+                        terrain_transition_min_forward_cells,
+                        value_type=int,
+                    ),
+                    'terrain_transition_min_lateral_width': ParameterValue(
+                        terrain_transition_min_lateral_width,
+                        value_type=float,
+                    ),
+                    'terrain_transition_max_plane_residual': ParameterValue(
+                        terrain_transition_max_plane_residual,
                         value_type=float,
                     ),
                     'use_sim_time': ParameterValue(

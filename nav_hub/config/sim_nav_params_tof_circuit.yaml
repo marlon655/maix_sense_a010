@@ -232,7 +232,7 @@ local_costmap:
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 4.0
+        voxel_decay: 1.5
         decay_model: 0
         voxel_size: 0.1
         track_unknown_space: false

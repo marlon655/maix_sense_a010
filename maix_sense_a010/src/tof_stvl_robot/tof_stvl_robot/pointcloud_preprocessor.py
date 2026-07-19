@@ -275,12 +275,13 @@ class PointCloudPreprocessor(Node):
         self.declare_parameter('terrain_analysis_enabled', False)
         self.declare_parameter('terrain_cell_size', 0.05)
         self.declare_parameter('terrain_min_points_per_cell', 3)
+        self.declare_parameter('terrain_min_reliable_points_per_cell', 2)
         self.declare_parameter('terrain_seed_x_min', 0.20)
         self.declare_parameter('terrain_seed_x_max', 0.45)
         self.declare_parameter('terrain_seed_half_width', 0.30)
         self.declare_parameter('terrain_seed_height_tolerance', 0.05)
         self.declare_parameter('terrain_flat_max_slope_deg', 3.0)
-        self.declare_parameter('terrain_max_traversable_slope_deg', 10.0)
+        self.declare_parameter('terrain_max_traversable_slope_deg', 20.0)
         self.declare_parameter('terrain_slope_noise_tolerance', 0.008)
         self.declare_parameter('terrain_max_roughness', 0.020)
         self.declare_parameter('terrain_obstacle_clearance', 0.040)
@@ -288,6 +289,11 @@ class PointCloudPreprocessor(Node):
         self.declare_parameter('terrain_unknown_is_obstacle', True)
         self.declare_parameter('terrain_allow_small_steps', False)
         self.declare_parameter('terrain_max_traversable_step_height', 0.025)
+        self.declare_parameter('terrain_transition_enabled', True)
+        self.declare_parameter('terrain_transition_max_length', 0.10)
+        self.declare_parameter('terrain_transition_min_forward_cells', 3)
+        self.declare_parameter('terrain_transition_min_lateral_width', 0.20)
+        self.declare_parameter('terrain_transition_max_plane_residual', 0.025)
         self.declare_parameter('publish_terrain_debug', False)
 
         input_topic = self.get_parameter('input_topic').value
@@ -414,6 +420,9 @@ class PointCloudPreprocessor(Node):
             min_points_per_cell=max(
                 1, int(self.get_parameter(
                     'terrain_min_points_per_cell').value)),
+            min_reliable_points_per_cell=max(
+                1, int(self.get_parameter(
+                    'terrain_min_reliable_points_per_cell').value)),
             seed_x_min=float(self.get_parameter('terrain_seed_x_min').value),
             seed_x_max=float(self.get_parameter('terrain_seed_x_max').value),
             seed_half_width=float(
@@ -442,6 +451,19 @@ class PointCloudPreprocessor(Node):
             max_traversable_step_height=float(
                 self.get_parameter(
                     'terrain_max_traversable_step_height').value),
+            transition_enabled=bool(
+                self.get_parameter('terrain_transition_enabled').value),
+            transition_max_length=float(
+                self.get_parameter('terrain_transition_max_length').value),
+            transition_min_forward_cells=max(
+                1, int(self.get_parameter(
+                    'terrain_transition_min_forward_cells').value)),
+            transition_min_lateral_width=float(
+                self.get_parameter(
+                    'terrain_transition_min_lateral_width').value),
+            transition_max_plane_residual=float(
+                self.get_parameter(
+                    'terrain_transition_max_plane_residual').value),
         )
 
     def create_filter_bounds_marker(self, action=Marker.ADD):
@@ -559,6 +581,8 @@ class PointCloudPreprocessor(Node):
             'terrain_cell_size': self.terrain_config.cell_size,
             'terrain_min_points_per_cell':
                 self.terrain_config.min_points_per_cell,
+            'terrain_min_reliable_points_per_cell':
+                self.terrain_config.min_reliable_points_per_cell,
             'terrain_seed_x_min': self.terrain_config.seed_x_min,
             'terrain_seed_x_max': self.terrain_config.seed_x_max,
             'terrain_seed_half_width': self.terrain_config.seed_half_width,
@@ -580,6 +604,16 @@ class PointCloudPreprocessor(Node):
                 self.terrain_config.allow_small_steps,
             'terrain_max_traversable_step_height':
                 self.terrain_config.max_traversable_step_height,
+            'terrain_transition_enabled':
+                self.terrain_config.transition_enabled,
+            'terrain_transition_max_length':
+                self.terrain_config.transition_max_length,
+            'terrain_transition_min_forward_cells':
+                self.terrain_config.transition_min_forward_cells,
+            'terrain_transition_min_lateral_width':
+                self.terrain_config.transition_min_lateral_width,
+            'terrain_transition_max_plane_residual':
+                self.terrain_config.transition_max_plane_residual,
         }
         terrain_analysis_enabled = self.terrain_analysis_enabled
         debug_restart_required = []
@@ -617,12 +651,16 @@ class PointCloudPreprocessor(Node):
             elif parameter.name == 'terrain_analysis_enabled':
                 terrain_analysis_enabled = bool(parameter.value)
             elif parameter.name in terrain_config_values:
-                if parameter.name == 'terrain_min_points_per_cell':
+                if parameter.name in (
+                        'terrain_min_points_per_cell',
+                        'terrain_min_reliable_points_per_cell',
+                        'terrain_transition_min_forward_cells'):
                     terrain_config_values[parameter.name] = int(
                         parameter.value)
                 elif parameter.name in (
                         'terrain_unknown_is_obstacle',
-                        'terrain_allow_small_steps'):
+                        'terrain_allow_small_steps',
+                        'terrain_transition_enabled'):
                     terrain_config_values[parameter.name] = bool(
                         parameter.value)
                 else:
@@ -643,6 +681,9 @@ class PointCloudPreprocessor(Node):
                 cell_size=float(terrain_config_values['terrain_cell_size']),
                 min_points_per_cell=int(
                     terrain_config_values['terrain_min_points_per_cell']),
+                min_reliable_points_per_cell=int(
+                    terrain_config_values[
+                        'terrain_min_reliable_points_per_cell']),
                 seed_x_min=float(
                     terrain_config_values['terrain_seed_x_min']),
                 seed_x_max=float(
@@ -673,6 +714,20 @@ class PointCloudPreprocessor(Node):
                 max_traversable_step_height=float(
                     terrain_config_values[
                         'terrain_max_traversable_step_height']),
+                transition_enabled=bool(
+                    terrain_config_values['terrain_transition_enabled']),
+                transition_max_length=float(
+                    terrain_config_values[
+                        'terrain_transition_max_length']),
+                transition_min_forward_cells=int(
+                    terrain_config_values[
+                        'terrain_transition_min_forward_cells']),
+                transition_min_lateral_width=float(
+                    terrain_config_values[
+                        'terrain_transition_min_lateral_width']),
+                transition_max_plane_residual=float(
+                    terrain_config_values[
+                        'terrain_transition_max_plane_residual']),
             )
             validate_terrain_config(terrain_config)
             validate_temporal_configuration(
@@ -831,6 +886,11 @@ class PointCloudPreprocessor(Node):
 
             if terrain_result is None or terrain_result.fallback_to_height_filter:
                 if terrain_result is not None:
+                    self.get_logger().info(
+                        'Terrain analysis fallback to height filter: '
+                        f'{terrain_result.fallback_reason}',
+                        throttle_duration_sec=2.0,
+                    )
                     self.publish_terrain_debug_clouds(
                         pre_terrain_lateral_points,
                         terrain_result,

@@ -232,7 +232,7 @@ local_costmap:
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 0.5
+        voxel_decay: 1.5
         decay_model: 0
         voxel_size: 0.05
         track_unknown_space: false
@@ -260,7 +260,7 @@ local_costmap:
           filter: "passthrough"
           voxel_min_points: 0
           clear_after_reading: true
-          min_z: 0.20
+          min_z: 0.04
           max_z: 1.20
           vertical_fov_angle: 1.047
           horizontal_fov_angle: 1.22
@@ -315,7 +315,7 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         # OREGON: valores importados do nav_routegraph.yaml.
         inflate_unknown: true
-        cost_scaling_factor: 5.0
+        cost_scaling_factor: 10.0
         inflation_radius: 0.3
 
       # OREGON: plugin de filtro de velocidade.
