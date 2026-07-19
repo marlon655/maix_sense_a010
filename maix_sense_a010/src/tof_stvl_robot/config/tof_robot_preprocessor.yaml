@@ -14,12 +14,31 @@ tof_pointcloud_preprocessor:
     distance_max: 2.0
 
     # Faixa vertical aceita no eixo Z de base_footprint, em metros.
-    height_min: 0.04
+    height_min: 0.02
     height_max: 1.20
 
     # Faixa lateral aceita no eixo Y de base_footprint, em metros.
     lateral_min: -1.10
     lateral_max: 1.10
+
+    # Analise opcional de terreno antes do corte de altura.
+    # Desligada por padrao para preservar o pipeline atual.
+    terrain_analysis_enabled: false
+    terrain_cell_size: 0.05
+    terrain_min_points_per_cell: 3
+    terrain_seed_x_min: 0.20
+    terrain_seed_x_max: 0.45
+    terrain_seed_half_width: 0.30
+    terrain_seed_height_tolerance: 0.05
+    terrain_flat_max_slope_deg: 3.0
+    terrain_max_traversable_slope_deg: 10.0
+    terrain_slope_noise_tolerance: 0.008
+    terrain_max_roughness: 0.020
+    terrain_obstacle_clearance: 0.040
+    terrain_min_ramp_length: 0.20
+    terrain_unknown_is_obstacle: true
+    terrain_allow_small_steps: false
+    terrain_max_traversable_step_height: 0.025
 
     # Remove pontos sem ao menos 3 vizinhos em um raio de 5 cm.
     radius_search: 0.05
@@ -42,4 +61,5 @@ tof_pointcloud_preprocessor:
     publish_intermediate_clouds: false
     publish_filter_bounds: false
     publish_projected_wall: false
+    publish_terrain_debug: false
     projected_wall_epsilon: 0.001

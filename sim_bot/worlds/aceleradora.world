@@ -53,5 +53,104 @@
       <pose>0 0 0 0 0 0</pose>
     </include>
 
+    <model name="aceleradora_ramp_5deg">
+      <static>true</static>
+      <pose>-14.0728 12.3537 0 0 0 -1.7321</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <mesh>
+              <uri>model://tof_test_obstacles/meshes/ramp_5deg_low.stl</uri>
+            </mesh>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>model://tof_test_obstacles/meshes/ramp_5deg_low.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>0.15 0.70 0.95 1</ambient>
+            <diffuse>0.15 0.70 0.95 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="aceleradora_ramp_10deg">
+      <static>true</static>
+      <pose>-15.2309 7.2615 0 0 0 -1.7960</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <mesh>
+              <uri>model://tof_test_obstacles/meshes/ramp_10deg_mid.stl</uri>
+            </mesh>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>model://tof_test_obstacles/meshes/ramp_10deg_mid.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>0.20 0.90 0.90 1</ambient>
+            <diffuse>0.20 0.90 0.90 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="aceleradora_ramp_15deg">
+      <static>true</static>
+      <pose>-16.2896 1.6146 0 0 0 -1.7690</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <mesh>
+              <uri>model://tof_test_obstacles/meshes/ramp_15deg_high.stl</uri>
+            </mesh>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>model://tof_test_obstacles/meshes/ramp_15deg_high.stl</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>0.15 0.95 0.45 1</ambient>
+            <diffuse>0.15 0.95 0.45 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
   </world>
 </sdf>

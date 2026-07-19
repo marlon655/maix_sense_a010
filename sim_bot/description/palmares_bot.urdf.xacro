@@ -39,10 +39,10 @@
             <material name="white"/>
         </visual>
         <collision>
-            <!-- Lower half of the body: Z 0 → 0.200 m -->
-            <origin xyz="-0.0145 0.050 0.100" rpy="0 0 0"/>
+            <!-- Body collision kept above the wheel contact plane for ramp tests. -->
+            <origin xyz="-0.0145 0.050 0.175" rpy="0 0 0"/>
             <geometry>
-                <box size="0.533 0.460 0.200"/>
+                <box size="0.533 0.460 0.150"/>
             </geometry>
         </collision>
         <xacro:inertial_box mass="35.0" x="0.533" y="0.460" z="0.428">
@@ -111,6 +111,52 @@
         </xacro:inertial_cylinder>
     </link>
 
+    <!-- Rear support skids keep the two-wheel robot level without using the
+         body collision as a ground contact. -->
+    <joint name="left_rear_support_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="left_rear_support"/>
+        <origin xyz="-0.210 0.155 0.035" rpy="0 0 0"/>
+    </joint>
+    <link name="left_rear_support">
+        <visual>
+            <geometry>
+                <sphere radius="0.035"/>
+            </geometry>
+            <material name="grey"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="0.035"/>
+            </geometry>
+        </collision>
+        <xacro:inertial_sphere mass="0.1" radius="0.035">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_sphere>
+    </link>
+
+    <joint name="right_rear_support_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="right_rear_support"/>
+        <origin xyz="-0.210 -0.055 0.035" rpy="0 0 0"/>
+    </joint>
+    <link name="right_rear_support">
+        <visual>
+            <geometry>
+                <sphere radius="0.035"/>
+            </geometry>
+            <material name="grey"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="0.035"/>
+            </geometry>
+        </collision>
+        <xacro:inertial_sphere mass="0.1" radius="0.035">
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </xacro:inertial_sphere>
+    </link>
+
     <!-- ═══ Chassis mount (virtual link – lidar.xacro parents to 'chassis') ═
          Placed so that lidar.xacro's default xyz="0 0 0.1" offset lands at
          the correct absolute lidar position: X=0.194 Y=0.050 Z=0.275 m
@@ -144,6 +190,22 @@
         <material>Gazebo/Black</material>
         <mu1>2.0</mu1>
         <mu2>2.0</mu2>
+        <kp>1e6</kp>
+        <kd>1.0</kd>
+    </gazebo>
+
+    <gazebo reference="left_rear_support">
+        <material>Gazebo/Grey</material>
+        <mu1>0.02</mu1>
+        <mu2>0.02</mu2>
+        <kp>1e6</kp>
+        <kd>1.0</kd>
+    </gazebo>
+
+    <gazebo reference="right_rear_support">
+        <material>Gazebo/Grey</material>
+        <mu1>0.02</mu1>
+        <mu2>0.02</mu2>
         <kp>1e6</kp>
         <kd>1.0</kd>
     </gazebo>

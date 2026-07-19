@@ -1,0 +1,58 @@
+solid ramp_15deg_high
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 1.2 0.3 0.0
+      vertex 1.2 -0.3 0.0
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 0.0 0.3 0.0
+      vertex 1.2 0.3 0.0
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 1.2 -0.3 0.322
+      vertex 1.2 0.3 0.322
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 1.2 0.3 0.322
+      vertex 0.0 0.3 0.0
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 1.2 -0.3 0.0
+      vertex 1.2 0.3 0.0
+      vertex 1.2 0.3 0.322
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 1.2 -0.3 0.0
+      vertex 1.2 0.3 0.322
+      vertex 1.2 -0.3 0.322
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 1.2 -0.3 0.0
+      vertex 1.2 -0.3 0.322
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 0.3 0.0
+      vertex 1.2 0.3 0.322
+      vertex 1.2 0.3 0.0
+    endloop
+  endfacet
+endsolid ramp_15deg_high

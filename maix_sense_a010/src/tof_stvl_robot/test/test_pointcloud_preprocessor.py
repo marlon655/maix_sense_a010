@@ -49,6 +49,9 @@ class Logger:
     def __init__(self):
         self.warnings = []
 
+    def debug(self, message, **_kwargs):
+        self.warnings.append(message)
+
     def error(self, _message):
         pass
 
@@ -113,6 +116,23 @@ class ProcessorHarness(PointCloudPreprocessor):
             'publish_intermediate_clouds': True,
             'publish_filter_bounds': True,
             'publish_projected_wall': True,
+            'terrain_analysis_enabled': False,
+            'terrain_cell_size': 0.05,
+            'terrain_min_points_per_cell': 3,
+            'terrain_seed_x_min': 0.20,
+            'terrain_seed_x_max': 0.45,
+            'terrain_seed_half_width': 0.30,
+            'terrain_seed_height_tolerance': 0.05,
+            'terrain_flat_max_slope_deg': 3.0,
+            'terrain_max_traversable_slope_deg': 10.0,
+            'terrain_slope_noise_tolerance': 0.008,
+            'terrain_max_roughness': 0.020,
+            'terrain_obstacle_clearance': 0.040,
+            'terrain_min_ramp_length': 0.20,
+            'terrain_unknown_is_obstacle': True,
+            'terrain_allow_small_steps': False,
+            'terrain_max_traversable_step_height': 0.025,
+            'publish_terrain_debug': False,
         }
         self.lateral_min = -0.25
         self.lateral_max = 0.25
@@ -135,6 +155,14 @@ class ProcessorHarness(PointCloudPreprocessor):
         self.publish_intermediate_clouds_enabled = True
         self.publish_filter_bounds_enabled = True
         self.publish_projected_wall_enabled = True
+        self.terrain_analysis_enabled = False
+        self.terrain_config = self.get_terrain_config()
+        self.publish_terrain_debug_enabled = False
+        self.terrain_pub = Publisher()
+        self.ramp_pub = Publisher()
+        self.step_pub = Publisher()
+        self.irregular_pub = Publisher()
+        self.non_traversable_pub = Publisher()
         self.logger = Logger()
         self.clock = Clock()
 
@@ -220,6 +248,19 @@ def test_empty_lateral_cloud_is_published():
     assert output.header.frame_id == 'tof'
     assert output.width == 0
     assert list(point_cloud2.read_points(lateral)) == []
+
+
+def test_terrain_disabled_preserves_previous_height_filter_behavior():
+    processor = run_callback([
+        [0.50, 0.00, 0.02],
+        [0.50, 0.00, 0.20],
+    ])
+
+    height = processor.height_pub.messages[-1]
+    output = processor.output_pub.messages[-1]
+    assert processor.terrain_analysis_enabled is False
+    assert height.width == 1
+    assert output.width == 1
 
 
 def test_debug_flags_require_node_restart():
@@ -548,8 +589,18 @@ def test_production_yaml_contains_only_preprocessor_parameters():
         'temporal_match_radius', 'temporal_reference_frame',
         'temporal_max_frame_gap', 'temporal_clear_history_on_tf_failure',
         'temporal_max_translation_jump', 'temporal_max_rotation_jump',
+        'terrain_analysis_enabled', 'terrain_cell_size',
+        'terrain_min_points_per_cell', 'terrain_seed_x_min',
+        'terrain_seed_x_max', 'terrain_seed_half_width',
+        'terrain_seed_height_tolerance', 'terrain_flat_max_slope_deg',
+        'terrain_max_traversable_slope_deg',
+        'terrain_slope_noise_tolerance', 'terrain_max_roughness',
+        'terrain_obstacle_clearance', 'terrain_min_ramp_length',
+        'terrain_unknown_is_obstacle', 'terrain_allow_small_steps',
+        'terrain_max_traversable_step_height',
         'publish_intermediate_clouds', 'publish_filter_bounds',
-        'publish_projected_wall', 'projected_wall_epsilon',
+        'publish_projected_wall', 'publish_terrain_debug',
+        'projected_wall_epsilon',
     }
     assert set(parameters) == required
     assert parameters['output_topic'] == \
@@ -557,6 +608,8 @@ def test_production_yaml_contains_only_preprocessor_parameters():
     assert parameters['target_frame'] == 'base_footprint'
     assert parameters['output_frame'] == 'tof'
     assert parameters['temporal_reference_frame'] == 'odom'
+    assert parameters['terrain_analysis_enabled'] is False
+    assert parameters['publish_terrain_debug'] is False
     assert parameters['publish_intermediate_clouds'] is False
     assert parameters['publish_filter_bounds'] is False
     assert parameters['publish_projected_wall'] is False
@@ -596,7 +649,6 @@ def test_production_launch_contains_exactly_two_nodes():
     assert 'nav2_lifecycle_manager' not in launch_source
     assert 'robot_state_publisher' not in launch_source
     assert 'static_transform_publisher' not in launch_source
-    assert 'use_sim_time' not in launch_source
     assert 'nav2_stvl_a010_example.yaml' not in launch_source
 
 
@@ -619,10 +671,9 @@ def test_package_has_no_bench_artifacts_or_old_name():
     assert not (package_root / 'tof_stvl_robot' /
                 'fake_obstacle_cloud.py').exists()
     assert legacy_package_name not in combined_text
-    assert 'use_sim_time: true' not in combined_text
 
 
-def test_setup_installs_production_launch_and_executable_only():
+def test_setup_installs_expected_launches_and_executable_only():
     package_root = Path(__file__).parents[1]
     setup_source = (package_root / 'setup.py').read_text(encoding='utf-8')
 
@@ -630,4 +681,11 @@ def test_setup_installs_production_launch_and_executable_only():
     assert "glob('launch/*.launch.py')" in setup_source
     assert 'pointcloud_preprocessor' in setup_source
     assert 'fake_obstacle_cloud' not in setup_source
-    assert len(list((package_root / 'launch').glob('*.launch.py'))) == 1
+    launch_names = {
+        path.name for path in (package_root / 'launch').glob('*.launch.py')
+    }
+    assert launch_names == {
+        'tof_robot_bringup.launch.py',
+        'tof_sim.launch.py',
+        'tof_real.launch.py',
+    }

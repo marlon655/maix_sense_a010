@@ -48,13 +48,18 @@ def _launch_mode(context, *args, **kwargs):
     if mode == 'simulation':
         sim_nav_graph = os.path.join(
             nav_hub_share, 'launch', 'route_graph', 'sim_nav_graph.launch.py')
+        hardware_default_params = os.path.join(
+            nav_hub_share, 'config', 'nav_routegraph.yaml')
+        if os.path.abspath(params_file) == os.path.abspath(hardware_default_params):
+            params_file = os.path.join(
+                nav_hub_share, 'config', 'sim_nav_params.yaml')
 
         return [
             SetParameter(name='use_sim_time', value=True),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(sim_nav_graph),
                 launch_arguments={
-                    'use_sim_time': use_sim_time,
+                    'use_sim_time': 'true',
                     'params_file': params_file,
                     'route': route,
                     'speed_filter': speed_filter,

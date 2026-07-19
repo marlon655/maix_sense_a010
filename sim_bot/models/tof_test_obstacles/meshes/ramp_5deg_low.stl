@@ -1,0 +1,58 @@
+solid ramp_5deg_low
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 0.8 0.3 0.0
+      vertex 0.8 -0.3 0.0
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 0.0 0.3 0.0
+      vertex 0.8 0.3 0.0
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 0.8 -0.3 0.07
+      vertex 0.8 0.3 0.07
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 0.8 0.3 0.07
+      vertex 0.0 0.3 0.0
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.8 -0.3 0.0
+      vertex 0.8 0.3 0.0
+      vertex 0.8 0.3 0.07
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.8 -0.3 0.0
+      vertex 0.8 0.3 0.07
+      vertex 0.8 -0.3 0.07
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 -0.3 0.0
+      vertex 0.8 -0.3 0.0
+      vertex 0.8 -0.3 0.07
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0 0.3 0.0
+      vertex 0.8 0.3 0.07
+      vertex 0.8 0.3 0.0
+    endloop
+  endfacet
+endsolid ramp_5deg_low

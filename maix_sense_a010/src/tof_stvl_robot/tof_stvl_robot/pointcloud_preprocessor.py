@@ -13,6 +13,11 @@ from sensor_msgs.msg import PointCloud2, PointField
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
 from tf2_ros import Buffer, TransformException, TransformListener
+from tof_stvl_robot.terrain_classifier import (
+    analyze_terrain,
+    TerrainAnalysisConfig,
+    validate_terrain_config,
+)
 from visualization_msgs.msg import Marker
 
 
@@ -267,6 +272,23 @@ class PointCloudPreprocessor(Node):
         self.declare_parameter('publish_filter_bounds', False)
         self.declare_parameter('publish_projected_wall', False)
         self.declare_parameter('projected_wall_epsilon', 0.001)
+        self.declare_parameter('terrain_analysis_enabled', False)
+        self.declare_parameter('terrain_cell_size', 0.05)
+        self.declare_parameter('terrain_min_points_per_cell', 3)
+        self.declare_parameter('terrain_seed_x_min', 0.20)
+        self.declare_parameter('terrain_seed_x_max', 0.45)
+        self.declare_parameter('terrain_seed_half_width', 0.30)
+        self.declare_parameter('terrain_seed_height_tolerance', 0.05)
+        self.declare_parameter('terrain_flat_max_slope_deg', 3.0)
+        self.declare_parameter('terrain_max_traversable_slope_deg', 10.0)
+        self.declare_parameter('terrain_slope_noise_tolerance', 0.008)
+        self.declare_parameter('terrain_max_roughness', 0.020)
+        self.declare_parameter('terrain_obstacle_clearance', 0.040)
+        self.declare_parameter('terrain_min_ramp_length', 0.20)
+        self.declare_parameter('terrain_unknown_is_obstacle', True)
+        self.declare_parameter('terrain_allow_small_steps', False)
+        self.declare_parameter('terrain_max_traversable_step_height', 0.025)
+        self.declare_parameter('publish_terrain_debug', False)
 
         input_topic = self.get_parameter('input_topic').value
         output_topic = self.get_parameter('output_topic').value
@@ -290,9 +312,15 @@ class PointCloudPreprocessor(Node):
             self.get_parameter('publish_filter_bounds').value)
         self.publish_projected_wall_enabled = bool(
             self.get_parameter('publish_projected_wall').value)
+        self.terrain_analysis_enabled = bool(
+            self.get_parameter('terrain_analysis_enabled').value)
+        self.publish_terrain_debug_enabled = bool(
+            self.get_parameter('publish_terrain_debug').value)
+        self.terrain_config = self.get_terrain_config()
         try:
             validate_lateral_limits(self.lateral_min, self.lateral_max)
             validate_projected_wall_epsilon(self.projected_wall_epsilon)
+            validate_terrain_config(self.terrain_config)
             validate_temporal_configuration(
                 self.temporal_history_frame,
                 temporal_max_frame_gap,
@@ -316,6 +344,11 @@ class PointCloudPreprocessor(Node):
         self.height_pub = None
         self.lateral_pub = None
         self.spatial_pub = None
+        self.terrain_pub = None
+        self.ramp_pub = None
+        self.step_pub = None
+        self.irregular_pub = None
+        self.non_traversable_pub = None
         if self.publish_intermediate_clouds_enabled:
             self.distance_pub = self.create_publisher(
                 PointCloud2, '/tof_filters/distance', 10)
@@ -325,6 +358,17 @@ class PointCloudPreprocessor(Node):
                 PointCloud2, '/tof_filters/lateral', 10)
             self.spatial_pub = self.create_publisher(
                 PointCloud2, '/tof_filters/spatial', 10)
+        if self.publish_terrain_debug_enabled:
+            self.terrain_pub = self.create_publisher(
+                PointCloud2, '/tof/terrain_points', 10)
+            self.ramp_pub = self.create_publisher(
+                PointCloud2, '/tof/ramp_points', 10)
+            self.step_pub = self.create_publisher(
+                PointCloud2, '/tof/step_points', 10)
+            self.irregular_pub = self.create_publisher(
+                PointCloud2, '/tof/irregular_points', 10)
+            self.non_traversable_pub = self.create_publisher(
+                PointCloud2, '/tof/non_traversable_points', 10)
 
         self.filter_bounds_pub = None
         self.projected_wall_pub = None
@@ -353,14 +397,52 @@ class PointCloudPreprocessor(Node):
         debug_state = (
             f'intermediate={self.publish_intermediate_clouds_enabled}, '
             f'bounds={self.publish_filter_bounds_enabled}, '
-            f'projected_wall={self.publish_projected_wall_enabled}')
+            f'projected_wall={self.publish_projected_wall_enabled}, '
+            f'terrain={self.publish_terrain_debug_enabled}')
         self.get_logger().info(
             f'ToF preprocessor ready: input={input_topic}, '
             f'output={output_topic}, '
             f'target_frame={self.get_parameter("target_frame").value}, '
             f'output_frame={self.get_parameter("output_frame").value}, '
             f'temporal_reference_frame={self.temporal_history_frame}, '
+            f'terrain_analysis={self.terrain_analysis_enabled}, '
             f'debug=[{debug_state}]')
+
+    def get_terrain_config(self):
+        return TerrainAnalysisConfig(
+            cell_size=float(self.get_parameter('terrain_cell_size').value),
+            min_points_per_cell=max(
+                1, int(self.get_parameter(
+                    'terrain_min_points_per_cell').value)),
+            seed_x_min=float(self.get_parameter('terrain_seed_x_min').value),
+            seed_x_max=float(self.get_parameter('terrain_seed_x_max').value),
+            seed_half_width=float(
+                self.get_parameter('terrain_seed_half_width').value),
+            seed_height_tolerance=float(
+                self.get_parameter(
+                    'terrain_seed_height_tolerance').value),
+            flat_max_slope_deg=float(
+                self.get_parameter('terrain_flat_max_slope_deg').value),
+            max_traversable_slope_deg=float(
+                self.get_parameter(
+                    'terrain_max_traversable_slope_deg').value),
+            slope_noise_tolerance=float(
+                self.get_parameter(
+                    'terrain_slope_noise_tolerance').value),
+            max_roughness=float(
+                self.get_parameter('terrain_max_roughness').value),
+            obstacle_clearance=float(
+                self.get_parameter('terrain_obstacle_clearance').value),
+            min_ramp_length=float(
+                self.get_parameter('terrain_min_ramp_length').value),
+            unknown_is_obstacle=bool(
+                self.get_parameter('terrain_unknown_is_obstacle').value),
+            allow_small_steps=bool(
+                self.get_parameter('terrain_allow_small_steps').value),
+            max_traversable_step_height=float(
+                self.get_parameter(
+                    'terrain_max_traversable_step_height').value),
+        )
 
     def create_filter_bounds_marker(self, action=Marker.ADD):
         marker = Marker()
@@ -441,6 +523,21 @@ class PointCloudPreprocessor(Node):
             points, approved_indices, sensor_origin, stamp)
         self.projected_wall_pub.publish(cloud)
 
+    def publish_terrain_debug_clouds(self, points, terrain_result, stamp,
+                                     frame_id):
+        if not self.publish_terrain_debug_enabled:
+            return
+        self.terrain_pub.publish(self.make_cloud(
+            points[terrain_result.terrain_mask], stamp, frame_id))
+        self.ramp_pub.publish(self.make_cloud(
+            points[terrain_result.ramp_mask], stamp, frame_id))
+        self.step_pub.publish(self.make_cloud(
+            points[terrain_result.step_mask], stamp, frame_id))
+        self.irregular_pub.publish(self.make_cloud(
+            points[terrain_result.irregular_mask], stamp, frame_id))
+        self.non_traversable_pub.publish(self.make_cloud(
+            points[terrain_result.non_traversable_mask], stamp, frame_id))
+
     def clear_temporal_history(self):
         self.temporal_history.clear()
         self.temporal_last_stamp_ns = None
@@ -458,6 +555,33 @@ class PointCloudPreprocessor(Node):
             self.get_parameter('temporal_max_translation_jump').value)
         temporal_max_rotation_jump = float(
             self.get_parameter('temporal_max_rotation_jump').value)
+        terrain_config_values = {
+            'terrain_cell_size': self.terrain_config.cell_size,
+            'terrain_min_points_per_cell':
+                self.terrain_config.min_points_per_cell,
+            'terrain_seed_x_min': self.terrain_config.seed_x_min,
+            'terrain_seed_x_max': self.terrain_config.seed_x_max,
+            'terrain_seed_half_width': self.terrain_config.seed_half_width,
+            'terrain_seed_height_tolerance':
+                self.terrain_config.seed_height_tolerance,
+            'terrain_flat_max_slope_deg':
+                self.terrain_config.flat_max_slope_deg,
+            'terrain_max_traversable_slope_deg':
+                self.terrain_config.max_traversable_slope_deg,
+            'terrain_slope_noise_tolerance':
+                self.terrain_config.slope_noise_tolerance,
+            'terrain_max_roughness': self.terrain_config.max_roughness,
+            'terrain_obstacle_clearance':
+                self.terrain_config.obstacle_clearance,
+            'terrain_min_ramp_length': self.terrain_config.min_ramp_length,
+            'terrain_unknown_is_obstacle':
+                self.terrain_config.unknown_is_obstacle,
+            'terrain_allow_small_steps':
+                self.terrain_config.allow_small_steps,
+            'terrain_max_traversable_step_height':
+                self.terrain_config.max_traversable_step_height,
+        }
+        terrain_analysis_enabled = self.terrain_analysis_enabled
         debug_restart_required = []
         for parameter in parameters:
             if parameter.name == 'lateral_min':
@@ -487,6 +611,23 @@ class PointCloudPreprocessor(Node):
                 if bool(parameter.value) != \
                         self.publish_projected_wall_enabled:
                     debug_restart_required.append(parameter.name)
+            elif parameter.name == 'publish_terrain_debug':
+                if bool(parameter.value) != self.publish_terrain_debug_enabled:
+                    debug_restart_required.append(parameter.name)
+            elif parameter.name == 'terrain_analysis_enabled':
+                terrain_analysis_enabled = bool(parameter.value)
+            elif parameter.name in terrain_config_values:
+                if parameter.name == 'terrain_min_points_per_cell':
+                    terrain_config_values[parameter.name] = int(
+                        parameter.value)
+                elif parameter.name in (
+                        'terrain_unknown_is_obstacle',
+                        'terrain_allow_small_steps'):
+                    terrain_config_values[parameter.name] = bool(
+                        parameter.value)
+                else:
+                    terrain_config_values[parameter.name] = float(
+                        parameter.value)
 
         if debug_restart_required:
             names = ', '.join(debug_restart_required)
@@ -498,6 +639,42 @@ class PointCloudPreprocessor(Node):
         try:
             validate_lateral_limits(lateral_min, lateral_max)
             validate_projected_wall_epsilon(projected_wall_epsilon)
+            terrain_config = TerrainAnalysisConfig(
+                cell_size=float(terrain_config_values['terrain_cell_size']),
+                min_points_per_cell=int(
+                    terrain_config_values['terrain_min_points_per_cell']),
+                seed_x_min=float(
+                    terrain_config_values['terrain_seed_x_min']),
+                seed_x_max=float(
+                    terrain_config_values['terrain_seed_x_max']),
+                seed_half_width=float(
+                    terrain_config_values['terrain_seed_half_width']),
+                seed_height_tolerance=float(
+                    terrain_config_values[
+                        'terrain_seed_height_tolerance']),
+                flat_max_slope_deg=float(
+                    terrain_config_values['terrain_flat_max_slope_deg']),
+                max_traversable_slope_deg=float(
+                    terrain_config_values[
+                        'terrain_max_traversable_slope_deg']),
+                slope_noise_tolerance=float(
+                    terrain_config_values[
+                        'terrain_slope_noise_tolerance']),
+                max_roughness=float(
+                    terrain_config_values['terrain_max_roughness']),
+                obstacle_clearance=float(
+                    terrain_config_values['terrain_obstacle_clearance']),
+                min_ramp_length=float(
+                    terrain_config_values['terrain_min_ramp_length']),
+                unknown_is_obstacle=bool(
+                    terrain_config_values['terrain_unknown_is_obstacle']),
+                allow_small_steps=bool(
+                    terrain_config_values['terrain_allow_small_steps']),
+                max_traversable_step_height=float(
+                    terrain_config_values[
+                        'terrain_max_traversable_step_height']),
+            )
+            validate_terrain_config(terrain_config)
             validate_temporal_configuration(
                 temporal_reference_frame,
                 temporal_max_frame_gap,
@@ -515,6 +692,8 @@ class PointCloudPreprocessor(Node):
         self.lateral_min = lateral_min
         self.lateral_max = lateral_max
         self.projected_wall_epsilon = projected_wall_epsilon
+        self.terrain_analysis_enabled = terrain_analysis_enabled
+        self.terrain_config = terrain_config
         if temporal_configuration_changed:
             self.clear_temporal_history()
         self.temporal_history_frame = temporal_reference_frame
@@ -628,27 +807,100 @@ class PointCloudPreprocessor(Node):
 
         transformed_all = self.transform_points(points, transform)
         transformed = transformed_all[distance_mask]
-        height_points = filter_height(
-            transformed,
-            float(self.get_parameter('height_min').value),
-            float(self.get_parameter('height_max').value),
-        )
-        height_mask = (
-            (transformed[:, 2] >=
-             float(self.get_parameter('height_min').value)) &
-            (transformed[:, 2] <=
-             float(self.get_parameter('height_max').value))
-        )
-        height_rgb = (
-            distance_rgb[height_mask] if distance_rgb is not None else None)
-        height_indices = distance_indices[height_mask]
+        height_min = float(self.get_parameter('height_min').value)
+        height_max = float(self.get_parameter('height_max').value)
 
-        lateral_mask = lateral_filter_mask(
-            height_points, self.lateral_min, self.lateral_max)
-        lateral_points = height_points[lateral_mask]
-        lateral_rgb = (
-            height_rgb[lateral_mask] if height_rgb is not None else None)
-        lateral_indices = height_indices[lateral_mask]
+        if self.terrain_analysis_enabled:
+            pre_terrain_lateral_mask = lateral_filter_mask(
+                transformed, self.lateral_min, self.lateral_max)
+            pre_terrain_lateral_points = transformed[pre_terrain_lateral_mask]
+            pre_terrain_lateral_rgb = (
+                distance_rgb[pre_terrain_lateral_mask]
+                if distance_rgb is not None else None)
+            pre_terrain_lateral_indices = (
+                distance_indices[pre_terrain_lateral_mask])
+            try:
+                terrain_result = analyze_terrain(
+                    pre_terrain_lateral_points, self.terrain_config)
+            except (TypeError, ValueError) as error:
+                self.get_logger().debug(
+                    f'Terrain analysis failed, using height filter: {error}',
+                    throttle_duration_sec=2.0,
+                )
+                terrain_result = None
+
+            if terrain_result is None or terrain_result.fallback_to_height_filter:
+                if terrain_result is not None:
+                    self.publish_terrain_debug_clouds(
+                        pre_terrain_lateral_points,
+                        terrain_result,
+                        msg.header.stamp,
+                        target_frame,
+                    )
+                height_points = filter_height(
+                    transformed, height_min, height_max)
+                height_mask = (
+                    (transformed[:, 2] >= height_min) &
+                    (transformed[:, 2] <= height_max)
+                )
+                height_rgb = (
+                    distance_rgb[height_mask]
+                    if distance_rgb is not None else None)
+                height_indices = distance_indices[height_mask]
+
+                lateral_mask = lateral_filter_mask(
+                    height_points, self.lateral_min, self.lateral_max)
+                lateral_points = height_points[lateral_mask]
+                lateral_rgb = (
+                    height_rgb[lateral_mask]
+                    if height_rgb is not None else None)
+                lateral_indices = height_indices[lateral_mask]
+            else:
+                self.publish_terrain_debug_clouds(
+                    pre_terrain_lateral_points,
+                    terrain_result,
+                    msg.header.stamp,
+                    target_frame,
+                )
+                terrain_obstacle_points = pre_terrain_lateral_points[
+                    terrain_result.obstacle_mask]
+                terrain_obstacle_rgb = (
+                    pre_terrain_lateral_rgb[terrain_result.obstacle_mask]
+                    if pre_terrain_lateral_rgb is not None else None)
+                terrain_obstacle_indices = pre_terrain_lateral_indices[
+                    terrain_result.obstacle_mask]
+                height_mask = (
+                    (terrain_obstacle_points[:, 2] >= height_min) &
+                    (terrain_obstacle_points[:, 2] <= height_max)
+                )
+                height_points = terrain_obstacle_points[height_mask]
+                height_rgb = (
+                    terrain_obstacle_rgb[height_mask]
+                    if terrain_obstacle_rgb is not None else None)
+                height_indices = terrain_obstacle_indices[height_mask]
+                lateral_points = height_points
+                lateral_rgb = height_rgb
+                lateral_indices = height_indices
+        else:
+            height_points = filter_height(
+                transformed,
+                height_min,
+                height_max,
+            )
+            height_mask = (
+                (transformed[:, 2] >= height_min) &
+                (transformed[:, 2] <= height_max)
+            )
+            height_rgb = (
+                distance_rgb[height_mask] if distance_rgb is not None else None)
+            height_indices = distance_indices[height_mask]
+
+            lateral_mask = lateral_filter_mask(
+                height_points, self.lateral_min, self.lateral_max)
+            lateral_points = height_points[lateral_mask]
+            lateral_rgb = (
+                height_rgb[lateral_mask] if height_rgb is not None else None)
+            lateral_indices = height_indices[lateral_mask]
 
         spatial_mask = radius_outlier_mask(
             lateral_points,

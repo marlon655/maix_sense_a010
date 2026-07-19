@@ -29,9 +29,25 @@ def generate_launch_description():
     input_topic = LaunchConfiguration('input_topic')
     target_frame = LaunchConfiguration('target_frame')
     output_frame = LaunchConfiguration('output_frame')
+    distance_min = LaunchConfiguration('distance_min')
+    lateral_min = LaunchConfiguration('lateral_min')
+    lateral_max = LaunchConfiguration('lateral_max')
     temporal_required_frames = LaunchConfiguration('temporal_required_frames')
+    temporal_reference_frame = LaunchConfiguration('temporal_reference_frame')
+    temporal_match_radius = LaunchConfiguration('temporal_match_radius')
     publish_intermediate_clouds = LaunchConfiguration(
         'publish_intermediate_clouds')
+    terrain_analysis_enabled = LaunchConfiguration('terrain_analysis_enabled')
+    publish_terrain_debug = LaunchConfiguration('publish_terrain_debug')
+    terrain_min_points_per_cell = LaunchConfiguration(
+        'terrain_min_points_per_cell')
+    terrain_seed_x_min = LaunchConfiguration('terrain_seed_x_min')
+    terrain_seed_x_max = LaunchConfiguration('terrain_seed_x_max')
+    terrain_seed_half_width = LaunchConfiguration('terrain_seed_half_width')
+    terrain_seed_height_tolerance = LaunchConfiguration(
+        'terrain_seed_height_tolerance')
+    terrain_slope_noise_tolerance = LaunchConfiguration(
+        'terrain_slope_noise_tolerance')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -55,14 +71,79 @@ def generate_launch_description():
             description='Frame used by the point cloud preprocessor output cloud.',
         ),
         DeclareLaunchArgument(
+            'distance_min',
+            default_value='0.20',
+            description='Minimum euclidean distance accepted by the point cloud preprocessor.',
+        ),
+        DeclareLaunchArgument(
+            'lateral_min',
+            default_value='-1.10',
+            description='Minimum lateral Y accepted by the point cloud preprocessor.',
+        ),
+        DeclareLaunchArgument(
+            'lateral_max',
+            default_value='1.10',
+            description='Maximum lateral Y accepted by the point cloud preprocessor.',
+        ),
+        DeclareLaunchArgument(
             'temporal_required_frames',
             default_value='2',
             description='Number of consecutive frames required by the temporal filter.',
         ),
         DeclareLaunchArgument(
+            'temporal_reference_frame',
+            default_value='odom',
+            description='Frame used to compare obstacle persistence between temporal frames.',
+        ),
+        DeclareLaunchArgument(
+            'temporal_match_radius',
+            default_value='0.05',
+            description='Maximum distance used to match the same obstacle between temporal frames.',
+        ),
+        DeclareLaunchArgument(
             'publish_intermediate_clouds',
             default_value='false',
             description='Publish /tof_filters/* debug clouds from each filter stage.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_analysis_enabled',
+            default_value='false',
+            description='Enable terrain/ramp classification before the obstacle height filter.',
+        ),
+        DeclareLaunchArgument(
+            'publish_terrain_debug',
+            default_value='false',
+            description='Publish /tof/terrain_points and ramp/step debug clouds.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_min_points_per_cell',
+            default_value='3',
+            description='Minimum points required to build a terrain elevation cell.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_seed_x_min',
+            default_value='0.20',
+            description='Minimum forward distance used to find initial terrain seed cells.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_seed_x_max',
+            default_value='0.45',
+            description='Maximum forward distance used to find initial terrain seed cells.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_seed_half_width',
+            default_value='0.30',
+            description='Half width around the robot centerline used to find terrain seeds.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_seed_height_tolerance',
+            default_value='0.05',
+            description='Maximum absolute seed height accepted as local terrain.',
+        ),
+        DeclareLaunchArgument(
+            'terrain_slope_noise_tolerance',
+            default_value='0.008',
+            description='Extra Z tolerance used when comparing neighboring terrain cells.',
         ),
         DeclareLaunchArgument(
             'device',
@@ -125,13 +206,62 @@ def generate_launch_description():
                     'input_topic': input_topic,
                     'target_frame': target_frame,
                     'output_frame': output_frame,
+                    'distance_min': ParameterValue(
+                        distance_min,
+                        value_type=float,
+                    ),
+                    'lateral_min': ParameterValue(
+                        lateral_min,
+                        value_type=float,
+                    ),
+                    'lateral_max': ParameterValue(
+                        lateral_max,
+                        value_type=float,
+                    ),
                     'temporal_required_frames': ParameterValue(
                         temporal_required_frames,
                         value_type=int,
                     ),
+                    'temporal_reference_frame': temporal_reference_frame,
+                    'temporal_match_radius': ParameterValue(
+                        temporal_match_radius,
+                        value_type=float,
+                    ),
                     'publish_intermediate_clouds': ParameterValue(
                         publish_intermediate_clouds,
                         value_type=bool,
+                    ),
+                    'terrain_analysis_enabled': ParameterValue(
+                        terrain_analysis_enabled,
+                        value_type=bool,
+                    ),
+                    'publish_terrain_debug': ParameterValue(
+                        publish_terrain_debug,
+                        value_type=bool,
+                    ),
+                    'terrain_min_points_per_cell': ParameterValue(
+                        terrain_min_points_per_cell,
+                        value_type=int,
+                    ),
+                    'terrain_seed_x_min': ParameterValue(
+                        terrain_seed_x_min,
+                        value_type=float,
+                    ),
+                    'terrain_seed_x_max': ParameterValue(
+                        terrain_seed_x_max,
+                        value_type=float,
+                    ),
+                    'terrain_seed_half_width': ParameterValue(
+                        terrain_seed_half_width,
+                        value_type=float,
+                    ),
+                    'terrain_seed_height_tolerance': ParameterValue(
+                        terrain_seed_height_tolerance,
+                        value_type=float,
+                    ),
+                    'terrain_slope_noise_tolerance': ParameterValue(
+                        terrain_slope_noise_tolerance,
+                        value_type=float,
                     ),
                     'use_sim_time': ParameterValue(
                         simulation,

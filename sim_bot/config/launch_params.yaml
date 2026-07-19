@@ -8,8 +8,8 @@ mode: simulation
 world: worlds/aceleradora.world
 robot_name: palmares_bot
 robot_urdf: description/palmares_bot.urdf.xacro
-spawn_x: -0.2621192932128906
-spawn_y: 12.350018501281738
+spawn_x: -13.639354705810547
+spawn_y: 14.217254638671875
 spawn_z: 0.15
 bridge_config: config/gz_bridge.yaml
 rviz_config: rviz/bot.rviz
