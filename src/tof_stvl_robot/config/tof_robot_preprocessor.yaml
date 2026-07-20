@@ -2,7 +2,7 @@ tof_pointcloud_preprocessor:
   ros__parameters:
     # PointCloud2 bruta publicada pelo driver e nuvem final para o Nav2 oficial.
     input_topic: /cloud
-    output_topic: /ground_segmentation/obstacle_points
+    output_topic: /tof/obstacle_points
 
     # TFs externas obrigatorias: base_footprint <- tof e odom <- base_footprint.
     target_frame: base_footprint

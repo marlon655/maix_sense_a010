@@ -244,7 +244,7 @@ class PointCloudPreprocessor(Node):
 
         self.declare_parameter('input_topic', '/cloud')
         self.declare_parameter(
-            'output_topic', '/ground_segmentation/obstacle_points')
+            'output_topic', '/tof/obstacle_points')
         self.declare_parameter('target_frame', 'base_footprint')
         self.declare_parameter('output_frame', 'tof')
         self.declare_parameter('transform_timeout', 0.10)

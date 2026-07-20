@@ -553,7 +553,7 @@ def test_production_yaml_contains_only_preprocessor_parameters():
     }
     assert set(parameters) == required
     assert parameters['output_topic'] == \
-        '/ground_segmentation/obstacle_points'
+        '/tof/obstacle_points'
     assert parameters['target_frame'] == 'base_footprint'
     assert parameters['output_frame'] == 'tof'
     assert parameters['temporal_reference_frame'] == 'odom'
@@ -572,7 +572,7 @@ def test_stvl_reference_uses_only_production_topic():
 
     source = config['stvl_layer']['pointcloud']
     assert config['stvl_layer']['observation_sources'] == 'pointcloud'
-    assert source['topic'] == '/ground_segmentation/obstacle_points'
+    assert source['topic'] == '/tof/obstacle_points'
     assert source['data_type'] == 'PointCloud2'
     assert source['sensor_frame'] == 'tof'
     assert '/tof_filters/' not in str(config)

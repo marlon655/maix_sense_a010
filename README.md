@@ -17,7 +17,7 @@ MaixSense A010                                    odometria real
   -> sipeed_tof_node                                -> odom -> base_footprint
   -> /cloud                                       URDF oficial
   -> tof_pointcloud_preprocessor                    -> base_footprint -> tof
-  -> /ground_segmentation/obstacle_points         Nav2 oficial
+  -> /tof/obstacle_points                           Nav2 oficial
                                                     -> STVL/local costmap
 ```
 
@@ -101,7 +101,7 @@ A altura fisica aproximada de `0,22 m` pertence ao URDF. `height_min` e
 O Nav2 oficial deve consumir somente:
 
 ```text
-/ground_segmentation/obstacle_points
+/tof/obstacle_points
 ```
 
 Use `tof_stvl_robot/config/nav2_stvl_a010_example.yaml` apenas como referencia
@@ -128,8 +128,8 @@ perfis.
 ```bash
 ros2 node list
 ros2 topic hz /cloud
-ros2 topic hz /ground_segmentation/obstacle_points
-ros2 topic echo /ground_segmentation/obstacle_points --once --field header
+ros2 topic hz /tof/obstacle_points
+ros2 topic echo /tof/obstacle_points --once --field header
 ros2 param dump /tof_pointcloud_preprocessor
 ```
 

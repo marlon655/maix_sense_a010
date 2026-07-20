@@ -10,12 +10,12 @@ responsavel por odometria, URDF, TFs, STVL, costmaps e Nav2.
 tof_robot_ws
 MaixSense A010 -> sipeed_tof_node -> /cloud
   -> tof_pointcloud_preprocessor
-  -> /ground_segmentation/obstacle_points
+  -> /tof/obstacle_points
 
 robot_ws
 odometria -> odom -> base_footprint
 URDF      -> base_footprint -> tof
-/ground_segmentation/obstacle_points -> STVL -> local costmap -> Nav2
+/tof/obstacle_points -> STVL -> local costmap -> Nav2
 ```
 
 | Responsabilidade | tof_robot_ws | robot_ws |
@@ -228,7 +228,7 @@ robo, respeitando o nome e os demais parametros da camada oficial.
 O topico deve ser exatamente:
 
 ```text
-/ground_segmentation/obstacle_points
+/tof/obstacle_points
 ```
 
 Nunca use `/tof_filters/*` em `observation_sources`. Nao crie outro local
@@ -241,7 +241,7 @@ ambiente:
 stvl_layer:
   observation_sources: pointcloud
   pointcloud:
-    topic: /ground_segmentation/obstacle_points
+    topic: /tof/obstacle_points
     data_type: PointCloud2
     marking: true
     clearing: false
@@ -282,10 +282,10 @@ estavel.
 ### 8.3 Nuvem filtrada
 
 ```bash
-ros2 topic info /ground_segmentation/obstacle_points -v
-ros2 topic hz /ground_segmentation/obstacle_points
+ros2 topic info /tof/obstacle_points -v
+ros2 topic hz /tof/obstacle_points
 ros2 topic echo \
-  /ground_segmentation/obstacle_points \
+  /tof/obstacle_points \
   --once \
   --field header
 ```
@@ -334,13 +334,13 @@ ros2 topic hz /tof_filters/projected_wall
 ```
 
 No RViz, use Fixed Frame `odom` e adicione `/cloud`, os topicos de debug,
-`/ground_segmentation/obstacle_points`, TF, RobotModel e o mapa do costmap
+`/tof/obstacle_points`, TF, RobotModel e o mapa do costmap
 oficial.
 
 ### 8.7 STVL efetivamente carregada
 
 ```bash
-ros2 topic info /ground_segmentation/obstacle_points -v
+ros2 topic info /tof/obstacle_points -v
 ros2 param dump /local_costmap/local_costmap
 ```
 
@@ -404,7 +404,7 @@ recente fora do timestamp da nuvem.
 ### Topico final sem subscriber
 
 Confira o YAML realmente carregado pelo Nav2 e procure
-`/ground_segmentation/obstacle_points` no dump do local costmap.
+`/tof/obstacle_points` no dump do local costmap.
 
 ### Topicos `/tof_filters/*` ausentes
 
