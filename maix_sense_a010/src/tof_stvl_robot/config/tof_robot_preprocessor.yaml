@@ -1,71 +1,186 @@
 tof_pointcloud_preprocessor:
   ros__parameters:
-    # PointCloud2 bruta publicada pelo driver e nuvem final para o Nav2 oficial.
+    # Topico PointCloud2 de entrada.
+    # Simulacao: normalmente /cloud vindo do Gazebo.
+    # Robo real: normalmente o topico publicado pelo driver fisico do A010.
     input_topic: /cloud
+
+    # Topico PointCloud2 final publicado para o Nav2/STVL.
+    # Esta nuvem deve conter somente os pontos tratados como obstaculos.
     output_topic: /tof/obstacle_points
 
-    # TFs externas obrigatorias: base_footprint <- tof e odom <- base_footprint.
+    # Frame onde os filtros geometricos sao calculados.
+    # base_footprint deixa altura/lateral/distancia na referencia do robo.
     target_frame: base_footprint
+
+    # Frame usado no header da nuvem publicada.
+    # No real costuma ser tof; na simulacao o launch sobrescreve para tof_lidar_frame.
     output_frame: tof
+
+    # Tempo maximo, em segundos, esperando uma TF antes de descartar o frame.
+    # Maior tolera atraso de TF; menor falha mais rapido.
     transform_timeout: 0.10
 
-    # Distancia euclidiana, em metros, medida a partir da lente do A010.
+    # Distancia minima aceita, em metros, medida a partir da origem do sensor.
+    # Pontos mais perto que isso sao removidos.
     distance_min: 0.20
+
+    # Distancia maxima aceita, em metros, medida a partir da origem do sensor.
+    # Pontos mais longe que isso sao removidos.
     distance_max: 2.0
 
-    # Faixa vertical aceita no eixo Z de base_footprint, em metros.
+    # Altura minima aceita no eixo Z do target_frame.
+    # Pontos abaixo disso sao tratados como piso/ruido e removidos antes do STVL.
     height_min: 0.02
+
+    # Altura maxima aceita no eixo Z do target_frame.
+    # Pontos acima disso sao removidos para evitar teto/partes altas sem interesse.
     height_max: 1.20
 
-    # Faixa lateral aceita no eixo Y de base_footprint, em metros.
+    # Limite lateral esquerdo/direito no eixo Y do target_frame.
+    # Define a janela util de deteccao em volta do centro do robo.
     lateral_min: -1.10
     lateral_max: 1.10
 
-    # Analise opcional de terreno antes do corte de altura.
-    # Desligada por padrao para preservar o pipeline atual.
+    # Liga a classificacao de terreno antes da publicacao final.
+    # true remove piso/rampas transitaveis da saida de obstaculos.
+    # false usa principalmente filtros de distancia/altura/lateral/espacial.
     terrain_analysis_enabled: false
+
+    # Tamanho da celula usada para agrupar a nuvem no plano XY.
+    # 0.05 = celulas de 5 cm x 5 cm.
+    # Menor detecta detalhes menores, mas fica mais sensivel a ruido.
     terrain_cell_size: 0.05
+
+    # Quantidade minima de pontos para uma celula existir na analise.
+    # Maior reduz ruido; menor preserva objetos pequenos/esparsos.
     terrain_min_points_per_cell: 3
+
+    # Quantidade minima de pontos para uma celula ser considerada confiavel
+    # como semente ou suporte de rampa.
     terrain_min_reliable_points_per_cell: 2
+
+    # Janela frontal usada para procurar sementes iniciais de terreno.
+    # X e a distancia para frente do robo no target_frame.
     terrain_seed_x_min: 0.20
     terrain_seed_x_max: 0.45
+
+    # Metade da largura lateral usada para procurar sementes de terreno.
+    # 0.30 aceita sementes entre y=-0.30 e y=+0.30.
     terrain_seed_half_width: 0.30
+
+    # Altura maxima absoluta para uma celula ser aceita como semente local.
+    # Maior ajuda quando o robo ja esta na entrada da rampa.
+    # Menor evita chamar objeto baixo de piso/terreno.
     terrain_seed_height_tolerance: 0.05
+
+    # Inclinacao maxima, em graus, para classificar uma regiao como piso plano.
     terrain_flat_max_slope_deg: 3.0
+
+    # Inclinacao maxima, em graus, para classificar uma regiao como rampa
+    # transitavel. Acima disso vira obstaculo/non_traversable.
     terrain_max_traversable_slope_deg: 20.0
+
+    # Folga extra de altura, em metros, ao comparar celulas vizinhas.
+    # Ajuda contra ruido e quinas do Gazebo, mas se for alto demais pode fazer
+    # degraus/objetos baixos parecerem rampa.
+    # Valor anterior: 0.008.
     terrain_slope_noise_tolerance: 0.03 #0.008
+
+    # Rugosidade maxima permitida dentro de uma celula.
+    # Celulas com variacao vertical maior que isso tendem a virar irregular.
     terrain_max_roughness: 0.020
+
+    # Altura maxima acima do terreno estimado ainda considerada terreno.
+    # Pontos acima deste valor viram obstaculo mesmo dentro de uma celula
+    # classificada como FLAT/RAMP.
+    # Valor anterior: 0.040.
     terrain_obstacle_clearance: 0.030 #0.040
+
+    # Comprimento minimo, em metros, para uma sequencia inclinada ser tratada
+    # como rampa em vez de pequeno ruido/local transition.
     terrain_min_ramp_length: 0.20
+
+    # Se true, celulas que nao conseguiram classificacao segura viram obstaculo.
+    # Mais conservador para navegacao.
     terrain_unknown_is_obstacle: true
+
+    # Se true, permite pequenos degraus serem tratados como terreno plano.
+    # Mantido false para nao liberar degraus baixos perigosos.
     terrain_allow_small_steps: false
+
+    # Altura maxima de degrau considerada potencialmente transitavel.
+    # Com allow_small_steps=false, ainda ajuda a separar FLAT/RAMP/STEP.
     terrain_max_traversable_step_height: 0.025
+
+    # Habilita recuperacao especial de transicao piso->rampa.
+    # Foi criada para evitar custo falso na quina da rampa no Gazebo.
     terrain_transition_enabled: true
+
+    # Comprimento maximo da faixa de transicao que pode ser reinterpretada
+    # como entrada de rampa.
     terrain_transition_max_length: 0.10
+
+    # Numero minimo de celulas a frente confirmando que existe suporte de rampa
+    # antes de liberar a transicao.
     terrain_transition_min_forward_cells: 3
+
+    # Largura lateral minima, em metros, para aceitar a transicao como rampa.
+    # Evita liberar objetos estreitos como se fossem rampa.
     terrain_transition_min_lateral_width: 0.20
+
+    # Erro maximo permitido ao ajustar um plano nos pontos de suporte da rampa.
+    # Menor exige rampa mais lisa; maior tolera ruido.
     terrain_transition_max_plane_residual: 0.025
 
-    # Remove pontos sem ao menos 3 vizinhos em um raio de 5 cm.
+    # Raio usado pelo filtro espacial de vizinhanca.
+    # Pontos isolados sao removidos se nao tiverem vizinhos suficientes.
     radius_search: 0.05
+
+    # Numero minimo de vizinhos dentro de radius_search.
+    # Maior remove mais ruido, mas pode apagar objetos pequenos/esparsos.
     min_neighbors: 3
 
-    # Persistencia temporal comparada em odom no timestamp original da nuvem.
+    # Numero de frames consecutivos em que um ponto precisa aparecer para ser
+    # mantido. Aumentar reduz ruido; diminuir deixa a resposta mais rapida.
     temporal_required_frames: 2
+
+    # Raio, em metros, usado para casar pontos entre frames no filtro temporal.
     temporal_match_radius: 0.05
+
+    # Frame usado para comparar pontos entre frames.
+    # odom compara no mundo local; base_footprint compara relativo ao robo.
     temporal_reference_frame: odom
+
+    # Intervalo maximo, em segundos, permitido entre frames no historico.
+    # Se passar disso, o historico temporal e limpo.
     temporal_max_frame_gap: 0.50
+
+    # Se true, limpa o historico temporal quando falha uma TF.
     temporal_clear_history_on_tf_failure: true
 
-    # Saltos acima destes limites limpam o historico temporal.
-    # Unidades: metros e radianos.
+    # Salto maximo de translacao do robo, em metros, antes de limpar historico.
+    # Evita comparar nuvens quando a odometria deu um pulo grande.
     temporal_max_translation_jump: 1.0
+
+    # Salto maximo de rotacao do robo, em radianos, antes de limpar historico.
+    # 1.5708 rad ~= 90 graus.
     temporal_max_rotation_jump: 1.5708
 
-    # Perfil de producao: debug desligado para evitar calculo e serializacao.
-    # Reinicie o no depois de alterar qualquer uma destas flags.
+    # Publica nuvens intermediarias em /tof_filters/* para debug.
+    # Custa processamento; em producao normalmente fica false.
     publish_intermediate_clouds: false
+
+    # Publica um marcador RViz mostrando a caixa/janela dos filtros.
     publish_filter_bounds: false
+
+    # Publica uma nuvem projetada ate distance_max para visualizar raios/filtro.
     publish_projected_wall: false
+
+    # Publica nuvens de debug da analise de terreno:
+    # /tof/terrain_points, /tof/ramp_points, /tof/step_points, etc.
     publish_terrain_debug: false
+
+    # Pequeno deslocamento usado na projecao da parede de debug para evitar
+    # pontos exatamente no mesmo plano.
     projected_wall_epsilon: 0.001
