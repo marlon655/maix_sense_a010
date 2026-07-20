@@ -130,8 +130,10 @@ tof_pointcloud_preprocessor:
     terrain_transition_min_lateral_width: 0.20
 
     # Erro maximo permitido ao ajustar um plano nos pontos de suporte da rampa.
-    # Menor exige rampa mais lisa; maior tolera ruido.
-    terrain_transition_max_plane_residual: 0.025
+    # 3,5 cm tolera pequenas irregularidades de piso/rampa e ruido do ToF.
+    # Isso nao altera terrain_obstacle_clearance: pontos mais de 3 cm acima do
+    # plano estimado continuam sendo publicados como obstaculo.
+    terrain_transition_max_plane_residual: 0.035
 
     # Raio usado pelo filtro espacial de vizinhanca.
     # Pontos isolados sao removidos se nao tiverem vizinhos suficientes.

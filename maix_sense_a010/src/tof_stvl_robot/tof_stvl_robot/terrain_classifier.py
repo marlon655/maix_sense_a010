@@ -423,10 +423,9 @@ def resolve_supported_ramp_entry_transitions(points, cells, cell_classes,
     for key, classification in cell_classes.items():
         if classification not in candidate_classes:
             continue
-        if classification == TerrainClass.UNKNOWN and \
-                cell_is_reliable(cells[key], config):
-            continue
-
+        # A reliable UNKNOWN cell can sit immediately after a short scan gap.
+        # Let the forward plane validate it; create_terrain_masks still keeps
+        # every point above obstacle_clearance as an obstacle.
         transition_cells = {}
         for dx in range(transition_cells_count):
             for dy in range(-lateral_cells, lateral_cells + 1):

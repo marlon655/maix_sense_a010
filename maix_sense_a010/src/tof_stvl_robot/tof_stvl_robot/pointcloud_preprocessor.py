@@ -293,7 +293,7 @@ class PointCloudPreprocessor(Node):
         self.declare_parameter('terrain_transition_max_length', 0.10)
         self.declare_parameter('terrain_transition_min_forward_cells', 3)
         self.declare_parameter('terrain_transition_min_lateral_width', 0.20)
-        self.declare_parameter('terrain_transition_max_plane_residual', 0.025)
+        self.declare_parameter('terrain_transition_max_plane_residual', 0.035)
         self.declare_parameter('publish_terrain_debug', False)
 
         input_topic = self.get_parameter('input_topic').value

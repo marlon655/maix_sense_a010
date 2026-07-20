@@ -128,6 +128,29 @@ def mixed_entry_ramp_points(slope_deg=8.0, entry_x=0.40,
     return np.vstack([cloud for cloud in clouds if len(cloud) > 0])
 
 
+def gapped_ramp_points(slope_deg=15.0, gap_cell=12,
+                       uneven_offsets=None, object_cell=None):
+    """Create a wide ramp with one completely unobserved 5 cm grid cell."""
+    if uneven_offsets is None:
+        uneven_offsets = {}
+
+    points = []
+    slope = math.tan(math.radians(slope_deg))
+    y_values = (-0.12, -0.06, 0.0, 0.06, 0.12)
+    for cell_x in range(2, 27):
+        if cell_x == gap_cell:
+            continue
+        x = (cell_x + 0.5) * 0.05
+        terrain_z = x * slope + uneven_offsets.get(cell_x, 0.0)
+        for y in y_values:
+            for local_z in (-0.002, 0.0, 0.002):
+                points.append([x, y, terrain_z + local_z])
+        if cell_x == object_cell:
+            for y in (-0.03, 0.0, 0.03):
+                points.append([x, y, terrain_z + 0.08])
+    return np.asarray(points, dtype=np.float32)
+
+
 def transition_config(**overrides):
     values = {
         'cell_size': 0.05,
@@ -334,6 +357,67 @@ def test_object_on_recovered_ramp_remains_obstacle():
     assert np.count_nonzero(result.ramp_mask) > 0
     assert np.count_nonzero(result.obstacle_mask) > 0
     assert np.max(points[result.obstacle_mask, 2]) > 0.09
+
+
+def test_reliable_ramp_cell_after_empty_grid_cell_is_recovered():
+    gap_cell = 12
+    points = gapped_ramp_points(gap_cell=gap_cell)
+    config = transition_config(
+        max_traversable_slope_deg=20.0,
+        seed_x_max=0.45,
+        obstacle_clearance=0.03,
+        transition_max_plane_residual=0.035,
+    )
+
+    result = analyze_terrain(points, config)
+
+    recovered_key = (gap_cell + 1, 0)
+    assert recovered_key in result.cells
+    assert result.cells[recovered_key].count >= \
+        config.min_reliable_points_per_cell
+    assert result.cell_classes[recovered_key] == TerrainClass.RAMP
+    assert not np.any(result.obstacle_mask[result.cells[recovered_key].indices])
+
+
+def test_gapped_uneven_ramp_keeps_object_above_clearance():
+    gap_cell = 12
+    object_cell = 19
+    uneven_offsets = {
+        cell_x: (0.022 if cell_x % 2 == 0 else -0.022)
+        for cell_x in range(15, 27)
+    }
+    points = gapped_ramp_points(
+        gap_cell=gap_cell,
+        uneven_offsets=uneven_offsets,
+        object_cell=object_cell,
+    )
+    config = transition_config(
+        max_traversable_slope_deg=20.0,
+        seed_x_max=0.45,
+        obstacle_clearance=0.03,
+        transition_max_plane_residual=0.035,
+    )
+
+    strict_result = analyze_terrain(
+        points,
+        transition_config(
+            max_traversable_slope_deg=20.0,
+            seed_x_max=0.45,
+            obstacle_clearance=0.03,
+            transition_max_plane_residual=0.025,
+        ),
+    )
+    result = analyze_terrain(points, config)
+
+    recovered_key = (gap_cell + 1, 0)
+    object_key = (object_cell, 0)
+    assert strict_result.cell_classes[recovered_key] == TerrainClass.UNKNOWN
+    assert result.cell_classes[recovered_key] == TerrainClass.RAMP
+    assert np.count_nonzero(result.ramp_mask) > 0
+    object_indices = result.cells[object_key].indices
+    assert np.count_nonzero(result.obstacle_mask[object_indices]) > 0
+    assert np.max(points[result.obstacle_mask, 2]) > \
+        np.median(points[object_indices, 2]) + config.obstacle_clearance
 
 
 def test_high_seed_plateau_is_not_released_as_terrain():

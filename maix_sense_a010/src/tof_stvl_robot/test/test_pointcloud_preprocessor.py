@@ -137,7 +137,7 @@ class ProcessorHarness(PointCloudPreprocessor):
             'terrain_transition_max_length': 0.10,
             'terrain_transition_min_forward_cells': 3,
             'terrain_transition_min_lateral_width': 0.20,
-            'terrain_transition_max_plane_residual': 0.025,
+            'terrain_transition_max_plane_residual': 0.035,
             'publish_terrain_debug': False,
         }
         self.lateral_min = -0.25

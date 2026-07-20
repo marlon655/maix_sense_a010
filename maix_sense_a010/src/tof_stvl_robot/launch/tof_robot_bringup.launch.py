@@ -184,7 +184,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'terrain_transition_max_plane_residual',
-            default_value='0.025',
+            default_value='0.035',
             description='Maximum residual accepted when fitting the forward ramp support plane.',
         ),
         DeclareLaunchArgument(
