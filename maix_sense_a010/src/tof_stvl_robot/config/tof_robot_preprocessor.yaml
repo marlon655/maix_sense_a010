@@ -33,9 +33,9 @@ tof_pointcloud_preprocessor:
     terrain_seed_height_tolerance: 0.05
     terrain_flat_max_slope_deg: 3.0
     terrain_max_traversable_slope_deg: 20.0
-    terrain_slope_noise_tolerance: 0.008
+    terrain_slope_noise_tolerance: 0.03 #0.008
     terrain_max_roughness: 0.020
-    terrain_obstacle_clearance: 0.040
+    terrain_obstacle_clearance: 0.030 #0.040
     terrain_min_ramp_length: 0.20
     terrain_unknown_is_obstacle: true
     terrain_allow_small_steps: false
