@@ -1,90 +1,90 @@
-solid ramp_15deg_up_plateau_down
+solid ramp_15deg_long_test
   facet normal 0 0 0
     outer loop
       vertex 0.0 -0.6 0.0
-      vertex 3.0 0.6 0.0
-      vertex 3.0 -0.6 0.0
+      vertex 6.6 0.6 0.0
+      vertex 6.6 -0.6 0.0
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
       vertex 0.0 -0.6 0.0
       vertex 0.0 0.6 0.0
-      vertex 3.0 0.6 0.0
+      vertex 6.6 0.6 0.0
     endloop
   endfacet
 
   facet normal 0 0 0
     outer loop
       vertex 0.0 -0.6 0.0
-      vertex 1.2 -0.6 0.322
-      vertex 1.2 0.6 0.322
+      vertex 3.0 -0.6 0.804
+      vertex 3.0 0.6 0.804
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
       vertex 0.0 -0.6 0.0
-      vertex 1.2 0.6 0.322
+      vertex 3.0 0.6 0.804
       vertex 0.0 0.6 0.0
     endloop
   endfacet
 
   facet normal 0 0 0
     outer loop
-      vertex 1.2 -0.6 0.322
-      vertex 1.8 -0.6 0.322
-      vertex 1.8 0.6 0.322
+      vertex 3.0 -0.6 0.804
+      vertex 3.6 -0.6 0.804
+      vertex 3.6 0.6 0.804
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
-      vertex 1.2 -0.6 0.322
-      vertex 1.8 0.6 0.322
-      vertex 1.2 0.6 0.322
+      vertex 3.0 -0.6 0.804
+      vertex 3.6 0.6 0.804
+      vertex 3.0 0.6 0.804
     endloop
   endfacet
 
   facet normal 0 0 0
     outer loop
-      vertex 1.8 -0.6 0.322
-      vertex 3.0 -0.6 0.0
-      vertex 3.0 0.6 0.0
+      vertex 3.6 -0.6 0.804
+      vertex 6.6 -0.6 0.0
+      vertex 6.6 0.6 0.0
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
-      vertex 1.8 -0.6 0.322
-      vertex 3.0 0.6 0.0
-      vertex 1.8 0.6 0.322
+      vertex 3.6 -0.6 0.804
+      vertex 6.6 0.6 0.0
+      vertex 3.6 0.6 0.804
     endloop
   endfacet
 
   facet normal 0 0 0
     outer loop
       vertex 0.0 -0.6 0.0
-      vertex 1.2 -0.6 0.322
-      vertex 1.8 -0.6 0.322
+      vertex 3.0 -0.6 0.804
+      vertex 3.6 -0.6 0.804
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
       vertex 0.0 -0.6 0.0
-      vertex 1.8 -0.6 0.322
-      vertex 3.0 -0.6 0.0
+      vertex 3.6 -0.6 0.804
+      vertex 6.6 -0.6 0.0
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
       vertex 0.0 0.6 0.0
-      vertex 1.8 0.6 0.322
-      vertex 1.2 0.6 0.322
+      vertex 3.6 0.6 0.804
+      vertex 3.0 0.6 0.804
     endloop
   endfacet
   facet normal 0 0 0
     outer loop
       vertex 0.0 0.6 0.0
-      vertex 3.0 0.6 0.0
-      vertex 1.8 0.6 0.322
+      vertex 6.6 0.6 0.0
+      vertex 3.6 0.6 0.804
     endloop
   endfacet
-endsolid ramp_15deg_up_plateau_down
+endsolid ramp_15deg_long_test

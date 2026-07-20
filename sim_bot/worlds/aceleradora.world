@@ -126,7 +126,7 @@
         <collision name="collision">
           <geometry>
             <mesh>
-              <uri>model://tof_test_obstacles/meshes/ramp_15deg_high.stl</uri>
+              <uri>model://tof_test_obstacles/meshes/ramp_15deg_long_test.stl</uri>
             </mesh>
           </geometry>
           <surface>
@@ -141,7 +141,7 @@
         <visual name="visual">
           <geometry>
             <mesh>
-              <uri>model://tof_test_obstacles/meshes/ramp_15deg_high.stl</uri>
+              <uri>model://tof_test_obstacles/meshes/ramp_15deg_long_test.stl</uri>
             </mesh>
           </geometry>
           <material>

@@ -66,8 +66,8 @@ x=9.20  painel final
 Faixa lateral de rampas, em y=3.00:
 x=1.40  rampa 5 graus, baixa
 x=3.00  rampa 10 graus, media
-x=4.75  rampa 15 graus, alta
-x=6.75  rampa 20 graus, inclinada
+x=5.65  rampa 15 graus, 1,20 m de largura, subida + plato de 60 cm + descida
+x=8.15  rampa 20 graus, inclinada
 ```
 
 Neste perfil, o spawn do Gazebo e a pose inicial do AMCL ficam alinhados em:

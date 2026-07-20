@@ -4,10 +4,9 @@
     <joint name="tof_lidar_joint" type="fixed">
         <parent link="chassis"/>
         <child link="tof_lidar_frame"/>
-        <!-- Altura antiga: z=0.18 relativo ao chassis => 0.355 m do chao. -->
-        <!-- Teste anterior: z=-0.025 relativo ao chassis => 0.150 m do chao. -->
-        <!-- Altura atual: z=0.025 relativo ao chassis => 0.200 m do chao. -->
-        <origin xyz="0.065 0 0.025" rpy="0 0 0"/>
+        <!-- Altura atual: z=0.18 relativo ao chassis => 0.355 m do chao. -->
+        <!-- Alturas testadas: z=-0.025 => 0.150 m; z=0.025 => 0.200 m do chao. -->
+        <origin xyz="0.065 0 0.18" rpy="0 0 0"/>
     </joint>
 
     <link name="tof_lidar_frame">

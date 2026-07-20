@@ -321,7 +321,7 @@
 
     <model name="tof_ramp_20deg_steep">
       <static>true</static>
-      <pose>6.10 3.00 0.0 0 0 0</pose>
+      <pose>7.50 3.00 0.0 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>

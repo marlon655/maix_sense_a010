@@ -9,7 +9,11 @@ source_if_exists() {
   fi
 }
 
+TOF_SIM_WS_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 source /opt/ros/jazzy/setup.bash
-source_if_exists /home/marlon/sim_ws/nav_hub/install/setup.bash
-source_if_exists /home/marlon/sim_ws/sim_bot/install/setup.bash
-source_if_exists /home/marlon/sim_ws/maix_sense_a010/install/setup.bash
+source_if_exists "${TOF_SIM_WS_ROOT}/nav_hub/install/setup.bash"
+source_if_exists "${TOF_SIM_WS_ROOT}/sim_bot/install/setup.bash"
+source_if_exists "${TOF_SIM_WS_ROOT}/maix_sense_a010/install/setup.bash"
+
+unset TOF_SIM_WS_ROOT
